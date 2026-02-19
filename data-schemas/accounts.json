@@ -1,0 +1,13 @@
+[
+  {
+    "accountId": "cermaq",
+    "name": "Cermaq",
+    "industry": "Acuicultura / Salmonicultura",
+    "champions": [
+      { "name": "Ana Ruiz", "role": "Champion / Decision Maker", "contact": "Telegram/Email" },
+      { "name": "Robinson Arriagada", "role": "Champion / Operaciones", "contact": "Telegram/Email" }
+    ],
+    "notes": "Cliente estratégico. Proceso comercial basado en hitos y departamentos.",
+    "createdAt": "2026-02-19T17:00:00Z"
+  }
+]

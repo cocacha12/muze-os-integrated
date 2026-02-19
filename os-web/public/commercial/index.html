@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Muze OS · Commercial Unificado</title>
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --panel: #12161c;
+      --panel2: #171c23;
+      --line: #232a33;
+      --text: #eef2f7;
+      --muted: #95a1b3;
+      --accent: #26CCC0
+    }
+
+    * { box-sizing: border-box }
+
+    body {
+      margin: 0;
+      background: radial-gradient(1200px 600px at 10% -10%, rgba(38, 204, 192, .12), transparent 40%), var(--bg);
+      color: var(--text);
+      font: 14px/1.4 Inter, ui-sans-serif, system-ui
+    }
+
+    .wrap { max-width: 1400px; margin: 0 auto; padding: 24px }
+
+    .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px }
+    .brand { display: flex; align-items: center; gap: 12px }
+    .brand h1 { margin: 0; font-size: 24px; letter-spacing: .2px }
+
+    .nav { display: flex; gap: 12px; align-items: center }
+    .link { color: var(--accent); text-decoration: none; font-weight: 700 }
+    .nav a.active { color: #d8fffc; text-decoration: underline; text-underline-offset: 4px }
+
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px }
+    .card {
+      background: linear-gradient(180deg, var(--panel2), var(--panel));
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .25)
+    }
+
+    .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em }
+    .v { font-size: 26px; font-weight: 700; margin-top: 6px }
+
+    .account-section { margin-bottom: 30px; }
+    .account-header {
+      background: rgba(38, 204, 192, 0.08);
+      padding: 14px 20px;
+      border-radius: 12px 12px 0 0;
+      border: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .account-title { font-size: 20px; font-weight: 800; color: var(--accent); }
+    .champions { display: flex; gap: 15px; font-size: 12px; color: var(--muted); }
+    .champ-tag { border-bottom: 1px dashed var(--line); }
+
+    .project-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      margin-top: -1px;
+      padding: 0;
+    }
+    .project-card:last-child { border-radius: 0 0 12px 12px; }
+
+    .project-summary {
+      padding: 16px 20px;
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      align-items: center;
+      gap: 20px;
+    }
+    .p-title { font-size: 16px; font-weight: 700; }
+    .p-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .st {
+      display: inline-block; padding: 3px 10px; border-radius: 6px;
+      font-size: 10px; font-weight: 800; text-transform: uppercase;
+      border: 1px solid var(--line); text-align: center;
+    }
+    .st-negotiation { color: var(--muted) }
+    .st-quote_sent { color: #f59e0b; border-color: rgba(245,158,11,0.3) }
+    .st-accepted { color: #10b981; border-color: rgba(16,185,129,0.3) }
+    .st-po_received { color: #26ccc0; border-color: rgba(38,204,192,0.3) }
+    .st-invoice_sent { color: #3b82f6; border-color: rgba(59,130,246,0.3) }
+    .st-development_active { color: #8b5cf6; border-color: rgba(139,92,246,0.3); background: rgba(139,92,246,0.05) }
+    .st-payment_received { color: var(--accent); border-color: var(--accent); background: rgba(38,204,192,0.1) }
+
+    .project-details {
+      padding: 0 20px 20px 20px;
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      gap: 20px;
+    }
+    .detail-box {
+      background: rgba(0,0,0,0.2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .box-h { font-size: 11px; color: var(--muted); text-transform: uppercase; margin-bottom: 12px; font-weight: 700; }
+    
+    /* Gantt / Timeline Chart */
+    .gantt { display: flex; flex-direction: column; gap: 8px; }
+    .gantt-row { display: flex; align-items: center; gap: 12px; font-size: 12px; }
+    .gantt-label { width: 140px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gantt-track { flex: 1; height: 12px; background: rgba(255,255,255,0.05); border-radius: 6px; position: relative; overflow: hidden; }
+    .gantt-bar { height: 100%; border-radius: 6px; position: absolute; left: 0; top: 0; }
+    .bar-delivered { background: var(--accent); box-shadow: 0 0 10px rgba(38, 204, 192, 0.4); }
+    .bar-todo { background: rgba(255,255,255,0.15); }
+    .gantt-date { font-size: 10px; color: var(--muted); width: 70px; text-align: right; }
+
+    /* Kanban Style Board */
+    .kanban { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 10px; margin-top: 20px; }
+    .kanban-col { background: rgba(0,0,0,0.2); border: 1px solid var(--line); border-radius: 12px; min-width: 240px; flex: 1; display: flex; flex-direction: column; }
+    .kanban-col h3 { padding: 12px; margin: 0; font-size: 11px; color: var(--muted); text-transform: uppercase; border-bottom: 1px solid var(--line); background: rgba(255,255,255,0.02); }
+    .kanban-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+    .kanban-card { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 13px; }
+    .kanban-card b { display: block; margin-bottom: 4px; color: var(--accent); }
+    .kanban-card small { color: var(--muted); font-size: 11px; }
+
+    #auth {
+      position: fixed; inset: 0; background: rgba(0, 0, 0, .64);
+      backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 99
+    }
+    #auth .panel {
+      width: 360px; background: linear-gradient(180deg, var(--panel2), var(--panel));
+      border: 1px solid #2a313c; border-radius: 14px; padding: 16px; display: grid; gap: 10px;
+    }
+    input, button { width: 100%; padding: 10px 11px; border-radius: 10px; border: 1px solid #2a313c; background: #0f1319; color: var(--text) }
+    button { background: var(--accent); color: #052524; border: none; font-weight: 700; cursor: pointer }
+
+    @keyframes blink { 0% { opacity: 1 } 50% { opacity: 0.5 } 100% { opacity: 1 } }
+    .stale { color: #ef4444; font-weight: 700; animation: blink 2s infinite }
+
+  </style>
+</head>
+
+<body>
+  <div id="auth">
+    <div class="panel"><b>Login · Muze OS</b><input id="u" placeholder="usuario" /><input id="p" placeholder="password" type="password" /><button id="loginBtn">Entrar</button></div>
+  </div>
+
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <svg viewBox="0 0 698 287" style="height:32px;width:auto;filter:drop-shadow(0 0 18px rgba(38,204,192,.22))" xmlns="http://www.w3.org/2000/svg">
+          <path fill="#ffffff" d="m23 48.5c0-14.8 11.7-26.5 26.5-26.5h5.8c11.3 0 19.2 5.8 24 13.7l64 104.1 64.2-104.4c1.8-2.8 5-7 10.3-10.3 10.7-6.7 21.9-5 25-4.4 4 1.7 9.8 5.1 12.6 11.3 4.6 10.3-1.7 22.6-5.7 28.7-44.4 67.4-76.7 116.1-83.5 127.8 0 0-6.7 11.6-15.7 14.6-3.9 1.3-7.9 1.3-7.9 1.3-9.7 0-16.5-5.1-22-13.4l-45.7-70.4v119.6c0 14.4-11.7 25.7-26.1 25.7-14.5 0-25.8-11.3-25.8-25.7z" />
+          <path fill="#26ccc0" d="m257 240.5c0-14-11.4-25.4-25.4-25.4-14 0-25.4 11.4-25.4 25.4 0 14.1 11.4 25.4 25.4 25.4 14 0 25.4-11.3 25.4-25.4z" />
+        </svg>
+        <h1>Muze OS · Commercial</h1>
+      </div>
+      <div class="nav">
+        <a class="link" href="/">Home</a> · 
+        <a class="link" href="/operations/">Operations</a> · 
+        <a class="link" href="/finances/">Finance</a> · 
+        <a class="link active" href="/commercial/">Commercial</a> · 
+        <a class="link" href="/audit/">Audit</a> · 
+        <a class="link" href="https://claw.muze.cl/live/" target="_blank">Live Canvas ↗</a>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><div class="k">Pipeline Total</div><div id="openN" class="v">-</div></div>
+      <div class="card"><div class="k">En Seguimiento</div><div id="progN" class="v">-</div></div>
+      <div class="card"><div class="k">Conversion Rate</div><div id="convN" class="v" style="color:var(--accent)">-</div></div>
+      <div class="card"><div class="k">Expected Value (EV)</div><div id="expectedValue" class="v">-</div></div>
+    </div>
+
+    <!-- Toggle View Links -->
+    <div style="margin-bottom:20px; display:flex; gap:14px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted)">
+      <span style="color:var(--accent); cursor:pointer" onclick="scrollToId('unifiedRoot')">Jerarquía</span> · 
+      <span style="cursor:pointer" onclick="scrollToId('kanbanRoot')">Kanban</span> · 
+      <span style="cursor:pointer" onclick="scrollToId('globalHistory')">Historial</span>
+    </div>
+
+    <div id="unifiedRoot"></div>
+
+    <div id="kanbanRoot" style="margin-top:40px">
+      <div class="k" style="margin-bottom:12px">Pipeline Kanban (Oportunidades)</div>
+      <div class="kanban" id="kanbanBoard"></div>
+    </div>
+
+    <div id="globalHistory" style="display:grid; grid-template-columns: 1.5fr 1fr; gap:20px; margin-top:40px">
+      <div class="card" style="padding:0; overflow:hidden">
+        <h3 style="margin:0; padding:14px; border-bottom:1px solid var(--line); font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em">Global Quote Registry</h3>
+        <div id="quoteReg" style="padding:4px"></div>
+      </div>
+      <div class="card" style="padding:0; overflow:hidden">
+        <h3 style="margin:0; padding:14px; border-bottom:1px solid var(--line); font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em">Pipeline Stats</h3>
+        <div id="funnelStats" style="padding:14px; display:grid; grid-template-columns: 1fr 1fr; gap:10px"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const stageMap = {
+      negotiation: { label: 'Negociación', cls: 'st-negotiation' },
+      quote_sent: { label: 'Cotización', cls: 'st-quote_sent' },
+      accepted: { label: 'Aceptada', cls: 'st-accepted' },
+      po_received: { label: 'OC Recibida', cls: 'st-po_received' },
+      invoice_sent: { label: 'Facturada', cls: 'st-invoice_sent' },
+      development_active: { label: 'En Desarrollo', cls: 'st-development_active' },
+      payment_received: { label: 'Cobrado', cls: 'st-payment_received' }
+    };
+
+    const fmtMoney = (val) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(val || 0);
+    const scrollToId = (id) => document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+
+    async function load() {
+      try {
+        const me = await fetch('/api/me');
+        if (!me.ok) { document.getElementById('auth').style.display = 'flex'; return; }
+        document.getElementById('auth').style.display = 'none';
+
+        const r = await fetch('/api/commercial-summary', { cache: 'no-store' });
+        const d = await r.json();
+
+        document.getElementById('openN').textContent = d.counts.open || 0;
+        document.getElementById('progN').textContent = d.counts.in_progress || 0;
+        document.getElementById('convN').textContent = (d.conversionRate ?? 0) + '%';
+        
+        let totalEV = 0;
+        (d.hierarchy || []).forEach(c => c.projects.forEach(p => totalEV += (p.expectedValue || 0)));
+        document.getElementById('expectedValue').textContent = fmtMoney(totalEV);
+
+        // Funnel Stats
+        const f = document.getElementById('funnelStats');
+        f.innerHTML = '';
+        Object.keys(stageMap).forEach(k => {
+          const count = d.stageCounts[k] || 0;
+          f.innerHTML += `<div><div class=\"k\">${stageMap[k].label}</div><div class=\"v\" style=\"font-size:18px\">${count}</div></div>`;
+        });
+
+        // Hierarchy View
+        const root = document.getElementById('unifiedRoot');
+        root.innerHTML = '';
+        (d.hierarchy || []).forEach(c => {
+          const sect = document.createElement('div');
+          sect.className = 'account-section';
+          const champs = (c.account.champions || []).map(ch => `<span class=\"champ-tag\">${ch.name} (${ch.role})</span>`).join(' · ');
+          
+          sect.innerHTML = `
+            <div class=\"account-header\">
+              <div class=\"account-title\">${c.customer}</div>
+              <div class=\"champions\">${champs}</div>
+            </div>
+            <div id=\"projects-${c.customer.replace(/\\s/g,'')}\" class=\"account-body\"></div>
+          `;
+          
+          const body = sect.querySelector('.account-body');
+          c.projects.forEach(p => {
+            const st = stageMap[p.stage] || { label: p.stage, cls: '' };
+            const pCard = document.createElement('div');
+            pCard.className = 'project-card';
+            
+            pCard.innerHTML = `
+              <div class=\"project-summary\">
+                <div class=\"p-info\">
+                  <div class=\"p-title\">${p.name}</div>
+                  <div class=\"p-desc\">${p.description || ''}</div>
+                </div>
+                <div class=\"p-amount\" style=\"text-align:right\">
+                  <div class=\"k\">Monto</div>
+                  <div style=\"font-weight:700\">${fmtMoney(p.amount)}</div>
+                </div>
+                <div class=\"p-stage\" style=\"text-align:center\">
+                  <div class=\"k\" style=\"margin-bottom:4px\">Etapa</div>
+                  <span class=\"st ${st.cls}\">${st.label}</span>
+                </div>
+                <div class=\"p-status\" style=\"text-align:right\">
+                  <div class=\"k\" style=\"margin-bottom:4px\">Estado</div>
+                  <span class=\"${p.isStale ? 'stale' : ''}\" style=\"font-size:11px; font-weight:800\">${p.isStale ? '⚠️ STALE' : 'ACTIVO'}</span>
+                </div>
+              </div>
+              <div class=\"project-details\">
+                <div class=\"detail-box\">
+                  <div class=\"box-h\">Gantt / Timeline de Proyecto</div>
+                  <div class=\"gantt\">
+                    ${(p.structure?.milestones || []).concat(p.structure?.departments || []).sort((a,b) => (a.date||'').localeCompare(b.date||'')).map(m => `
+                      <div class=\"gantt-row\">
+                        <div class=\"gantt-label\">${m.name}</div>
+                        <div class=\"gantt-track\">
+                          <div class=\"gantt-bar ${m.status==='delivered'?'bar-delivered':'bar-todo'}\" style=\"width:${m.status==='delivered'?'100%':'30%'}\"></div>
+                        </div>
+                        <div class=\"gantt-date\">${m.date || '-'}</div>
+                      </div>
+                    `).join('')}
+                    ${(!p.structure)?'<div style=\"font-size:12px; color:var(--muted)\">Estructura no definida.</div>':''}
+                  </div>
+                </div>
+                <div class=\"detail-box\">
+                  <div class=\"box-h\">Steps & Docs</div>
+                  <div class=\"task-list\">
+                    ${p.tasks.map(t => `
+                      <div class=\"task-mini\">
+                        <div style=\"width:100%\"><span style=\"color:var(--accent); font-weight:700\">${t.id}</span> <b>${t.title}</b></div>
+                        <div style=\"font-size:10px; color:var(--muted); margin-top:2px\">DUE: ${t.dueDate || '-'} · ${t.status.toUpperCase()}</div>
+                      </div>
+                    `).join('')}
+                    ${p.quotes.map(q => `
+                      <div class=\"task-mini\" style=\"border-left: 2px solid #f59e0b; padding-left:12px; background:rgba(245,158,11,0.03)\">
+                        <div style=\"width:100%\"><span style=\"color:#f59e0b; font-weight:700\">QUOTE</span> <b><a href=\"${q.pdfUrl}\" target=\"_blank\" class=\"link\" style=\"color:var(--text)\">Cotización ${q.quoteId}</a></b></div>
+                        <div style=\"font-size:10px; color:var(--muted); margin-top:2px\">${new Date(q.createdAt).toLocaleDateString()} · @${q.requesterTelegramTag || '-'}</div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              </div>
+            `;
+            body.appendChild(pCard);
+          });
+          root.appendChild(sect);
+        });
+
+        // Kanban Board
+        const board = document.getElementById('kanbanBoard');
+        board.innerHTML = '';
+        Object.keys(stageMap).forEach(k => {
+          const col = document.createElement('div');
+          col.className = 'kanban-col';
+          col.innerHTML = `<h3>${stageMap[k].label}</h3><div class=\"kanban-list\" id=\"kb-${k}\"></div>`;
+          board.appendChild(col);
+          
+          const list = col.querySelector('.kanban-list');
+          (d.hierarchy || []).forEach(c => {
+             c.projects.filter(p => p.stage === k).forEach(p => {
+               list.innerHTML += `
+                 <div class=\"kanban-card\">
+                   <b>${c.customer}</b>
+                   <div>${p.name}</div>
+                   <div style=\"margin-top:6px\"><small>${fmtMoney(p.amount)}</small></div>
+                 </div>
+               `;
+             });
+          });
+          if (list.innerHTML === '') list.innerHTML = '<div style=\"font-size:10px; color:var(--muted); text-align:center; padding:20px\">Vacío</div>';
+        });
+
+        // Global Registry mini
+        const qReg = document.getElementById('quoteReg');
+        qReg.innerHTML = '';
+        (d.quoteRegistry || []).slice(0, 8).forEach(q => {
+          qReg.innerHTML += `
+            <div style=\"padding:12px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center\">
+              <div><b>${q.customer}</b><br><small style=\"color:var(--muted)\">${q.quoteId} · @${q.requesterTelegramTag || '-'}</small></div>
+              <a href=\"${q.pdfUrl}\" target=\"_blank\" class=\"link\" style=\"font-size:12px\">ABRIR PDF ↗</a>
+            </div>
+          `;
+        });
+
+      } catch (err) { console.error(err); }
+    }
+
+    document.getElementById('loginBtn').onclick = async () => {
+      const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u.value, password: p.value }) });
+      if (r.ok) load();
+    };
+
+    load();
+    setInterval(load, 15000);
+  </script>
+</body>
+</html>

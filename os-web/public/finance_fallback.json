@@ -1,0 +1,78 @@
+{
+  "scope": "cermaq_only",
+  "month": "2026-02",
+  "regime": "Pro Pyme General (14D)",
+  "idpcRate": 0.25,
+  "ivaCreditoEstimado": 0,
+  "revenues": [
+    {
+      "id": "FCH_782185829-33-3",
+      "project": "Cermaq Laboratorios (Hito 1)",
+      "customer": "CERMAQ CHILE S.A.",
+      "issueDate": "2026-02-10",
+      "net": 5467200,
+      "iva": 1038768,
+      "total": 6505968
+    },
+    {
+      "id": "FCH_782185829-33-4",
+      "project": "Cermaq Laboratorios (Hito 2)",
+      "customer": "CERMAQ CHILE S.A.",
+      "issueDate": "2026-02-10",
+      "net": 10934400,
+      "iva": 2077536,
+      "total": 13011936
+    }
+  ],
+  "costsDirect": [
+    {
+      "name": "Comisión variable LAB (5% neto facturas 3+4)",
+      "project": "Cermaq Laboratorios (Hitos 1+2)",
+      "monthlyAmount": 820080,
+      "notes": "Costo directo consolidado LAB sobre suma neta de folios 3 y 4"
+    }
+  ],
+  "operatingExpenses": [
+    {
+      "name": "Internet",
+      "monthlyAmount": 25000,
+      "notes": "Dato confirmado"
+    },
+    {
+      "name": "Cuenta Claude Max",
+      "monthlyAmount": 95000,
+      "notes": "USD 100/mes (TC referencia 950 CLP)"
+    },
+    {
+      "name": "Microsoft @muze.cl (4 cuentas)",
+      "monthlyAmount": 17100,
+      "notes": "USD 18/mes (TC referencia 950 CLP)"
+    }
+  ],
+  "honorarios": [
+    {
+      "name": "Honorarios Mark",
+      "monthlyAmount": 3392288,
+      "notes": "Regla normal 60/40 (Mes Feb-2026, sobre cobrado neto Cermaq)"
+    },
+    {
+      "name": "Honorarios Christopher",
+      "monthlyAmount": 2328192,
+      "notes": "Regla normal 60/40 (Mes Feb-2026, sobre cobrado neto Cermaq)"
+    }
+  ],
+  "openingBalance": 0,
+  "minimumTarget": 3000000,
+  "notes": [
+    "Política vigente: honorarios por regla 60/40. Excepción única Feb-2026: bono extraordinario solo para Christopher para equiparar total con Mark; no recurrente y sin precedente."
+  ],
+  "bonosExtraordinarios": [
+    {
+      "beneficiary": "Christopher",
+      "month": "2026-02",
+      "amount": 1064096,
+      "type": "one-off",
+      "notes": "Bono extraordinario único Feb-2026 para equiparar total de Mark. No constituye precedente."
+    }
+  ]
+}
