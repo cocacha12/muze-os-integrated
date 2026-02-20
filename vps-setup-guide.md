@@ -29,26 +29,35 @@ sudo apt-get install -y ca-certificates fonts-liberation libasound2 libatk-bridg
 ## 5. Levantar el Servicio de PDF (Worker)
 El generador de PDFs corre como un microservicio independiente en el puerto **3211**.
 ```bash
-# Iniciar el worker
-node pdf-worker.cjs
+# Iniciar el worker con PM2 para persistencia
+pm2 start pdf-worker.cjs --name "muze-pdf-worker"
 ```
-> [!TIP]
-> Te recomendamos usar un gestor de procesos como **PM2** para mantener el worker activo:
-> `npm install -g pm2`
-> `pm2 start pdf-worker.cjs --name "muze-pdf-worker"`
 
-## 6. Levantar la Aplicación Web (Frontend)
-Para desarrollo o pruebas rápidas:
-```bash
-npm run dev
+## 6. Despliegue con Docker (Producción)
+Muze OS Reborn está optimizado para correr en contenedores Docker:
+```dockerfile
+# Estructura recomendada
+FROM node:18-slim
+RUN apt-get update && apt-get install -y chromium ...
+COPY . .
+RUN npm install && npm run build
+CMD ["pm2-runtime", "start", "ecosystem.config.js"]
 ```
-Para producción, genera el build estático:
-```bash
-npm run build
-```
-Y sirve la carpeta `dist/` usando Nginx o Apache.
 
-## 7. Notas sobre la IA y Supabase
+## 7. Resolución de Errores Comunes
+### Bloqueo Vite 403 (Forbidden)
+Si al acceder desde el dominio oficial recibes un error 403, asegúrate de configurar el servidor de Vite para permitir el host:
+```javascript
+// vite.config.js
+export default defineConfig({
+  server: {
+    allowedHosts: ['muzeos.muze.cl']
+  }
+})
+```
+
+## 8. Notas sobre la IA y Supabase
+- **Dominio Oficial**: [https://muzeos.muze.cl](https://muzeos.muze.cl)
 - **Edge Functions**: La lógica de los agentes reside en Supabase. Asegúrate de tener las variables de entorno configuradas en tu dashboard de Supabase (URL y API Keys).
 - **PDF Worker**: La aplicación web (`App.jsx`) está configurada para buscar el worker en `localhost:3211`. Si el VPS tiene una IP pública distinta, ajusta la constante en el frontend.
 

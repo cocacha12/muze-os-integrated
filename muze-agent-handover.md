@@ -4,7 +4,8 @@ Este documento es el manual maestro para que cualquier Agente de IA (OpenClaw / 
 
 ## 1. Contexto del Sistema
 Muze OS Reborn es un hub operativo agéntico diseñado bajo el paradigma **"Todo es una Tarea"**. 
-- **Frontend**: React + Vite (en `os-web-reborn/`).
+- **Producción**: [https://muzeos.muze.cl](https://muzeos.muze.cl) ✅
+- **Frontend**: React + Vite (Desplegado en Docker con PM2).
 - **Backend/DB**: Supabase (Postgres + Edge Functions).
 - **Herramientas de IA**: Expone un API CRUD y un servidor MCP para ejecución de lógica compleja.
 
