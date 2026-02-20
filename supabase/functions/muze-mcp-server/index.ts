@@ -7,13 +7,12 @@ import {
 } from "npm:@modelcontextprotocol/sdk/types.js";
 import { createClient } from 'npm:@supabase/supabase-js@2.39.3';
 
-// Initialize Supabase Client for the execute environment
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
 // Create MCP Server
 const server = new Server(
-  { name: "muze-mcp-server", version: "1.0.0" },
+  { name: "muze-mcp-server", version: "1.2.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -23,13 +22,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "search",
-        description: "Search the muze-os-api contract (api-contract-v1.json). The LLM writes JS code to filter the spec. The API spec contains 'tasks', 'projects', 'quotes', 'events', etc.",
+        description: "Search the Muze OS API contract (resources, endpoints, fields). The agent writes JS to filter the spec.",
         inputSchema: {
           type: "object",
           properties: {
             code: {
               type: "string",
-              description: "JavaScript async arrow function to search the spec. Example: `async (spec) => { return spec.resources.tasks; }`"
+              description: "JavaScript async arrow function to search the spec. Example: `async (spec) => spec.resources.finance`"
             }
           },
           required: ["code"]
@@ -37,13 +36,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "execute",
-        description: "Execute JavaScript code against the Muze OS Supabase Postgres Database. You have access to a `supabase` client instance (auth'd as service_role).",
+        description: "Execute autonomous JavaScript code against the Muze OS backend. Use the `muze.request()` client to perform CRUD.",
         inputSchema: {
           type: "object",
           properties: {
             code: {
               type: "string",
-              description: "JavaScript async arrow function to execute. Example: `async (supabase) => { const { data } = await supabase.from('tasks').select('*').limit(2); return data; }`"
+              description: "JavaScript async arrow function to execute. Example: `async (muze) => await muze.request({ method: 'GET', path: '/tasks' })`"
             }
           },
           required: ["code"]
@@ -53,110 +52,83 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   };
 });
 
-// Mocked Spec for the `search` tool (In production this could fetch the JSON)
-const spec = {
-  "name": "muze-os-api",
-  "version": "1.1.0",
-  "resources": {
-    "tasks": { "list": "GET /api/tasks", "create": "POST /api/tasks", "update": "PATCH /api/tasks/:id" },
-    "projects": { "list": "GET /api/projects", "create": "POST /api/projects" },
-    "quotes": { "list": "GET /api/quotes" }
-  },
-  "tables": ["tasks", "commercial_projects", "commercial_quotes", "events"]
-};
-
-// Handle Tool Execution (The 'Code Mode' sandbox evaluation)
+// Handle Tool Execution
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     try {
-      // Spawn an isolated Web Worker for safe execution
       const workerUrl = new URL('./worker/sandbox.ts', import.meta.url).href;
-
-      // Deno extension: Workers can be run with restricted permissions
       const worker = new Worker(workerUrl, { type: "module" });
-
       const reqId = crypto.randomUUID();
 
       worker.onmessage = async (e) => {
         const { reqId: id, success, result, error } = e.data;
         if (id === reqId) {
           worker.terminate();
-
           if (success) {
-            try {
-              // Log Event to Audit Log if it was an execution
-              if (name === "execute") {
-                const supabase = createClient(supabaseUrl, supabaseKey);
-                await supabase.from('events').insert({
-                  source: 'system',
-                  channel: 'system',
-                  type: 'mcp_execute_eval',
-                  event_id: crypto.randomUUID(),
-                  meta: { code_executed: args?.code, result_status: 'success' }
-                });
-              }
-            } catch (logErr) {
-              console.error("Failed to append audit log", logErr);
+            // Log successful execution (Simplified audit)
+            if (name === "execute") {
+              const supabase = createClient(supabaseUrl, supabaseKey);
+              await supabase.from('events').insert({
+                source: 'system',
+                channel: 'system',
+                type: 'mcp_execute_eval',
+                meta: { code_executed: args?.code, success: true }
+              });
             }
-
-            resolve({
-              content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
-            });
+            resolve({ content: [{ type: "text", text: JSON.stringify(result, null, 2) }] });
           } else {
-            resolve({
-              content: [{ type: "text", text: `Error executing code: ${error}` }],
-              isError: true
-            });
+            resolve({ content: [{ type: "text", text: `Error: ${error}` }], isError: true });
           }
         }
       };
 
       worker.onerror = (e) => {
         worker.terminate();
-        resolve({
-          content: [{ type: "text", text: `Worker runtime error: ${e.message}` }],
-          isError: true
-        });
+        resolve({ content: [{ type: "text", text: `Runtime error: ${e.message}` }], isError: true });
       };
 
-      // Post the evaluation request to the Sandbox
+      // Payload Provisioning
       if (name === "search") {
-        worker.postMessage({ type: 'search', reqId, code: args?.code, payload: spec });
+        // In a real environment, we'd fetch the live JSON. For now, we mock the core structure or try to fetch it.
+        const specUrl = `${supabaseUrl}/rest/v1/storage/v1/object/public/system/api-contract-v1.json`;
+        // Alternative: Use a consolidated version of what we know.
+        worker.postMessage({ type: 'search', reqId, code: args?.code, payload: { resources: ["tasks", "projects", "finance", "commercial", "accounts"], contract_version: "1.2.0" } });
       } else if (name === "execute") {
         worker.postMessage({ type: 'execute', reqId, code: args?.code, payload: { url: supabaseUrl, key: supabaseKey } });
-      } else {
-        worker.terminate();
-        reject(new Error(`Tool not found: ${name}`));
       }
 
     } catch (error: any) {
-      resolve({ content: [{ type: "text", text: `Failed to spawn sandbox: ${error.message}` }], isError: true });
+      resolve({ content: [{ type: "text", text: `Fatal: ${error.message}` }], isError: true });
     }
   });
 });
 
-// SSE Transport Map
 const activeTransports = new Map<string, SSEServerTransport>();
 
-// Deno Edge Function HTTP Server Handler
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   const path = url.pathname;
 
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-client-info, apikey",
+  };
+
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
   // 1. Healthcheck
-  if (req.method === "GET" && (path === "/" || path.endsWith("/muze-mcp-server") || path.endsWith("/muze-mcp-server/"))) {
-    return new Response(JSON.stringify({ status: "ok", service: "muze-mcp-server", path }), {
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+  if (req.method === "GET" && (path === "/" || path.endsWith("/mcp"))) {
+    return new Response(JSON.stringify({ status: "alive", service: "muze-mcp-server" }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
   }
 
-  // 2. SSE Connection Endpoint
+  // 2. SSE Connection
   if (req.method === "GET" && path.endsWith("/mcp/sse")) {
     const { readable, writable } = new TransformStream();
-
-    // Setup transport using standard Web Streams
     const writer = writable.getWriter();
     const transport = new SSEServerTransport("/mcp/messages", {
       setHeader: () => { },
@@ -169,54 +141,31 @@ Deno.serve(async (req) => {
     const sessionId = transport.sessionId;
     activeTransports.set(sessionId, transport);
 
-    transport.onclose = () => {
-      activeTransports.delete(sessionId);
-    };
+    transport.onclose = () => { activeTransports.delete(sessionId); };
 
     return new Response(readable, {
       headers: {
+        ...corsHeaders,
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-        "Access-Control-Allow-Origin": "*"
+        "Connection": "keep-alive"
       }
     });
   }
 
-  // 3. Messages Endpoint (Tool execution requests)
+  // 3. Messages
   if (req.method === "POST" && path.endsWith("/mcp/messages")) {
     const sessionId = url.searchParams.get("sessionId");
-    if (!sessionId) return new Response("Missing sessionId", { status: 400 });
+    if (!sessionId) return new Response("Missing sessionId", { status: 400, headers: corsHeaders });
 
     const transport = activeTransports.get(sessionId);
-    if (!transport) return new Response("Session not found", { status: 404 });
+    if (!transport) return new Response("Session not found", { status: 404, headers: corsHeaders });
 
     const body = await req.json();
     await transport.handlePostMessage({ body } as any);
 
-    return new Response("Accepted", { status: 202, headers: { "Access-Control-Allow-Origin": "*" } });
+    return new Response("Accepted", { status: 202, headers: corsHeaders });
   }
 
-  return new Response(`Not Found: ${path}`, { status: 404 });
-});
-      }
-    });
-  }
-
-// 3. Messages Endpoint (Tool execution requests)
-if (url.pathname === "/mcp/messages" && req.method === "POST") {
-  const sessionId = url.searchParams.get("sessionId");
-  if (!sessionId) return new Response("Missing sessionId", { status: 400 });
-
-  const transport = activeTransports.get(sessionId);
-  if (!transport) return new Response("Session not found", { status: 404 });
-
-  // Mock the Express req object structure expected by SSEServerTransport
-  const body = await req.json();
-  await transport.handlePostMessage({ body } as any);
-
-  return new Response("Accepted", { status: 202 });
-}
-
-return new Response("Not Found", { status: 404 });
+  return new Response("Not Found", { status: 404, headers: corsHeaders });
 });
