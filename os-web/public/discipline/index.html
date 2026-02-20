@@ -1,6 +1,0 @@
-<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Muze OS · Discipline</title>
-<style>:root{--bg:#0b0d10;--panel:#12161c;--line:#232a33;--text:#eef2f7;--muted:#95a1b3;--accent:#26CCC0}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,system-ui}.wrap{max-width:900px;margin:0 auto;padding:20px}.card{background:linear-gradient(180deg,#171c23,var(--panel));border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:10px}a{color:var(--accent);text-decoration:none;font-weight:700}</style></head>
-<body><main class="wrap"><h1 style="margin:0">Muze OS · Discipline</h1><div style="margin:6px 0 12px 0"><a href="/">OS Home</a></div><div class="card"><div id="sum">Cargando…</div></div><div class="card"><pre id="raw" style="white-space:pre-wrap;color:#cfe"></pre></div></main>
-<script>
-(async()=>{const me=await fetch('/api/me'); if(!me.ok){location.href='/?next=/discipline/'; return;} const r=await fetch('/api/discipline-summary',{cache:'no-store'}); const d=await r.json(); sum.textContent=`Ventana ${d.window} · eventos ${d.totalEvents} · latest ${d.latestEventTs||'-'}`; raw.textContent=JSON.stringify(d,null,2);})();
-</script></body></html>

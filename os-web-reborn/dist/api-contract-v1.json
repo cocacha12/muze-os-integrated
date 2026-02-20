@@ -1,0 +1,77 @@
+{
+  "name": "muze-os-api",
+  "version": "1.1.0",
+  "basePath": "/",
+  "principles": [
+    "single-source-of-truth",
+    "append-only-events",
+    "idempotent-mutations",
+    "stable-resource-naming",
+    "backward-compatible-evolution"
+  ],
+  "resources": {
+    "tasks": {
+      "list": "GET /api/tasks",
+      "get": "GET /api/tasks/:id",
+      "create": "POST /api/tasks",
+      "update": "PATCH /api/tasks/:id",
+      "delete": "DELETE /api/tasks/:id",
+      "filters": [
+        "owner",
+        "status"
+      ]
+    },
+    "projects": {
+      "list": "GET /api/projects",
+      "get": "GET /api/projects/:id",
+      "create": "POST /api/projects",
+      "update": "PATCH /api/projects/:id",
+      "delete": "DELETE /api/projects/:id"
+    },
+    "quotes": {
+      "list": "GET /api/quotes",
+      "get": "GET /api/quotes/:id",
+      "create": "POST /api/quotes",
+      "update": "PATCH /api/quotes/:id",
+      "delete": "DELETE /api/quotes/:id",
+      "filters": [
+        "projectId"
+      ]
+    },
+    "finance": {
+      "summary": "GET /api/finance/summary"
+    },
+    "commercial": {
+      "summary": "GET /api/commercial-summary"
+    },
+    "events": {
+      "append": "POST /api/events"
+    },
+    "os": {
+      "consistency": "GET /api/consistency-health",
+      "disciplineScore": "GET /api/discipline-score"
+    }
+  },
+  "idempotency": {
+    "requiredFor": [
+      "POST /api/tasks",
+      "PATCH /api/tasks/:id",
+      "POST /api/projects",
+      "POST /api/quotes",
+      "POST /api/events"
+    ],
+    "header": "Idempotency-Key"
+  },
+  "eventModel": {
+    "schemaVersion": 1,
+    "eventId": "string",
+    "ts": "ISO-8601",
+    "source": "dm|consulting|roadmap|system|api",
+    "channel": "dm|consulting|roadmap|system",
+    "type": "task_mutation|finance_mutation|quote_mutation|canvas_published|policy_change|task_note_add|event_ack",
+    "entityId": "string",
+    "before": "object|null",
+    "after": "object|null",
+    "meta": "object"
+  }
+}

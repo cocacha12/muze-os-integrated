@@ -1,0 +1,15 @@
+{
+  "imports": {
+    "@supabase/functions-js": "jsr:@supabase/functions-js@^2"
+  },
+  "compilerOptions": {
+    "lib": [
+      "deno.window",
+      "deno.worker",
+      "dom",
+      "dom.iterable",
+      "dom.asynciterable"
+    ],
+    "strict": true
+  }
+}

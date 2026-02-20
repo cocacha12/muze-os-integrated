@@ -1,0 +1,170 @@
+/* Muze AI — Quotation Stylesheet v2 */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --primary: #26ccc0;
+    --primary-dark: #1a8a82;
+    --secondary: #1a1a2e;
+    --text: #333;
+    --light-gray: #f8f9fa;
+    --border: #e9ecef;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.6;
+    color: var(--text);
+    margin: 0;
+    padding: 0;
+}
+
+h1 {
+    font-size: 24pt;
+    line-height: 1.2;
+    /* Fixed tight line spacing */
+    color: var(--secondary);
+    border-bottom: 4px solid var(--primary);
+    padding-bottom: 15px;
+    margin-top: 10px;
+    margin-bottom: 25px;
+    font-weight: 700;
+}
+
+h2 {
+    font-size: 16pt;
+    color: var(--primary-dark);
+    margin-top: 30px;
+    margin-bottom: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+}
+
+h2::before {
+    content: "";
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    background-color: var(--primary);
+    margin-right: 12px;
+    border-radius: 2px;
+}
+
+h3 {
+    font-size: 13pt;
+    color: var(--secondary);
+    border-left: 4px solid var(--primary);
+    padding-left: 12px;
+    margin-top: 20px;
+    font-weight: 600;
+}
+
+p {
+    margin-bottom: 15px;
+}
+
+strong {
+    font-weight: 600;
+    color: #000;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    background: white;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+th {
+    background-color: var(--secondary);
+    color: white;
+    padding: 12px;
+    text-align: left;
+    font-size: 9.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 10pt;
+}
+
+tr:last-child td {
+    border-bottom: none;
+}
+
+tr:nth-child(even) {
+    background-color: #fafafa;
+}
+
+/* Signature Block Styling */
+.signature-block {
+    margin-top: 60px;
+    margin-bottom: 40px;
+    position: relative;
+    width: 300px;
+}
+
+.signature-line {
+    border-top: 2px solid var(--secondary);
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.signature-name {
+    font-weight: 700;
+    font-size: 12pt;
+    color: var(--secondary);
+}
+
+.signature-title {
+    font-size: 10pt;
+    color: #666;
+}
+
+.signature-company {
+    font-size: 10pt;
+    color: var(--primary-dark);
+    font-weight: 500;
+}
+
+/* Stamp / Timbre - Using physical image */
+.stamp-placeholder {
+    position: absolute;
+    top: -55px;
+    right: -100px;
+    width: 150px;
+    height: 150px;
+    transform: rotate(-10deg);
+    opacity: 0.9;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.stamp-placeholder img {
+    filter: brightness(0.9) contrast(1.1);
+    /* Subtle polish */
+}
+
+blockquote {
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #f0fdfc;
+    border-left: 5px solid var(--primary);
+    border-radius: 0 8px 8px 0;
+    font-style: italic;
+    color: #164e4a;
+}
+
+hr {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 30px 0;
+}
