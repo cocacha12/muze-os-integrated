@@ -8,7 +8,12 @@ Muze OS Reborn es un hub operativo agéntico diseñado bajo el paradigma **"Todo
 - **Backend/DB**: Supabase (Postgres + Edge Functions).
 - **Herramientas de IA**: Expone un API CRUD y un servidor MCP para ejecución de lógica compleja.
 
-## 2. Acceso y Autenticación
+## 2. Política de Sincronización Continua (GitHub)
+**Importante**: Este sistema opera bajo una política de "Sync Inmediato". 
+- Cada cambio en la infraestructura, lógica de negocio o documentación se refleja instantáneamente en el repositorio remoto: `https://github.com/cocacha12/muze-os-integrated`.
+- **Regla para el Agente**: Siempre consulta el repositorio para obtener el contexto más reciente antes de realizar operaciones críticas de CRUD. La documentación local y remota son idénticas y se actualizan en tiempo real.
+
+## 3. Acceso y Autenticación
 - **Base URL**: `https://uajdytklnstnujwpsldl.supabase.co/functions/v1/muze-os-api`
 - **Contrato del API**: `/public/api-contract-v1.json` (Consúltalo siempre para descubrir endpoints).
 - **Headers Requeridos**:
