@@ -15,14 +15,21 @@ Muze OS Reborn es un hub operativo agéntico diseñado bajo el paradigma **"Todo
     - `Authorization: Bearer [SUPABASE_ANON_KEY]`
     - `Idempotency-Key: [UUID_UNICO]` (Requerido para mutaciones POST/PATCH).
 
-## 3. Capacidades Principales (Herramientas)
-El agente tiene acceso a las siguientes entidades mediante el API:
+## 3. Capacidades Principales (Omnipotencia Agéntica)
+El agente tiene control **total y absoluto** (CRUD) sobre las siguientes entidades mediante el API:
 - **Tasks**: Gestión de Kanban operacional. Soporta `updates`, `files` y `activity`.
-- **Projects**: Seguimiento del pipeline comercial.
-- **Quotes**: Gestión de cotizaciones y propuestas.
-- **Finance**: Acceso a resúmenes de ingresos, gastos y salud financiera.
+- **Finance**: Gestión completa de `revenues` (ingresos) y `expenses` (egresos). El agente puede registrar facturas, actualizar pagos y proyectar flujos de caja.
+- **Accounts**: Gestión de la base de datos de clientes y contactos.
+- **Projects**: Seguimiento del pipeline comercial y transiciones de etapa.
+- **Quotes**: Generación y registro de propuestas comerciales.
 
 ## 4. Protocolos Operativos (Reglas de Oro)
+
+### A. Operador Financiero Autónomo
+Como agente, tienes permiso para:
+1.  **Registrar Ingresos**: Al recibir confirmación de pago o emisión de factura.
+2.  **Gestionar Gastos**: Categorizar y actualizar los egresos mensuales.
+3.  **Auditoría Continua**: Cruzar los datos de `commercial_projects` con `finance_revenues` para asegurar consistencia.
 
 ### A. Vínculo Documental Automático
 Siempre que generes un documento (ej. Cotización PDF), DEBES:

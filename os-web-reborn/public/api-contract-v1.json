@@ -39,11 +39,45 @@
       ]
     },
     "finance": {
-      "summary": "GET /api/finance/summary"
+      "summary": "GET /api/finance/summary",
+      "revenues": {
+        "list": "GET /api/finance/revenues",
+        "get": "GET /api/finance/revenues/:id",
+        "create": "POST /api/finance/revenues",
+        "update": "PATCH /api/finance/revenues/:id",
+        "delete": "DELETE /api/finance/revenues/:id"
+      },
+      "expenses": {
+        "list": "GET /api/finance/expenses",
+        "get": "GET /api/finance/expenses/:id",
+        "create": "POST /api/finance/expenses",
+        "update": "PATCH /api/finance/expenses/:id",
+        "delete": "DELETE /api/finance/expenses/:id"
+      }
+    },
+    "accounts": {
+      "list": "GET /api/accounts",
+      "get": "GET /api/accounts/:id",
+      "create": "POST /api/accounts",
+      "update": "PATCH /api/accounts/:id",
+      "delete": "DELETE /api/accounts/:id"
     },
     "commercial": {
       "summary": "GET /api/commercial-summary",
       "generateQuote": "POST /api/commercial/generate-quote"
+    },
+    "collaboration": {
+      "updates": {
+        "list": "GET /api/tasks/updates?taskId=:taskId",
+        "create": "POST /api/tasks/updates"
+      },
+      "files": {
+        "list": "GET /api/tasks/files?taskId=:taskId",
+        "create": "POST /api/tasks/files"
+      },
+      "activity": {
+        "list": "GET /api/tasks/activity?taskId=:taskId"
+      }
     },
     "events": {
       "append": "POST /api/events"
@@ -59,7 +93,10 @@
       "PATCH /api/tasks/:id",
       "POST /api/projects",
       "POST /api/quotes",
-      "POST /api/events"
+      "POST /api/events",
+      "POST /api/finance/revenues",
+      "POST /api/finance/expenses",
+      "POST /api/accounts"
     ],
     "header": "Idempotency-Key"
   },
@@ -67,9 +104,9 @@
     "schemaVersion": 1,
     "eventId": "string",
     "ts": "ISO-8601",
-    "source": "dm|consulting|roadmap|system|api",
+    "source": "dm|consulting|roadmap|system|api|finance-agent|commercial-agent",
     "channel": "dm|consulting|roadmap|system",
-    "type": "task_mutation|finance_mutation|quote_mutation|canvas_published|policy_change|task_note_add|event_ack",
+    "type": "task_mutation|finance_mutation|quote_mutation|account_mutation|canvas_published|policy_change|task_note_add|event_ack",
     "entityId": "string",
     "before": "object|null",
     "after": "object|null",
