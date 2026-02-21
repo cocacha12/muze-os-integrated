@@ -1061,17 +1061,26 @@ function CommercialView({ user, setView, setSelectedTask }) {
     }
 
     async function fetchCommercial() {
+        setLoading(true);
         const { data: accounts } = await supabase.from('accounts').select('*');
         const { data: projects } = await supabase.from('projects').select('*');
-        const { data: quotes } = await supabase.from('quotes').select('*');
+        const { data: tasks } = await supabase.from('tasks').select('*');
+        const { data: files } = await supabase.from('task_files').select('*');
 
         const hierarchy = accounts?.map(acc => ({
             customer: acc.name,
             account: acc,
-            projects: projects?.filter(p => (p.account_id || '').toLowerCase() === (acc.account_id || '').toLowerCase()).map(p => ({
-                ...p,
-                quotes: quotes?.filter(q => (q.project_id || '').toLowerCase() === (p.project_id || '').toLowerCase()) || []
-            })) || []
+            projects: projects?.filter(p => (p.account_id || '').toLowerCase() === (acc.account_id || '').toLowerCase()).map(p => {
+                const projectTasks = tasks?.filter(t => (t.project_id || '').toLowerCase() === (p.project_id || '').toLowerCase()) || [];
+                const projectFiles = files?.filter(f => projectTasks.some(t => t.id === f.task_id)) || [];
+                const quotes = projectFiles.filter(f => f.name.toLowerCase().includes('cotización') || f.name.toLowerCase().includes('proposal'));
+
+                return {
+                    ...p,
+                    tasks: projectTasks,
+                    quotes
+                };
+            }) || []
         })) || [];
 
         const stats = {
@@ -1146,22 +1155,43 @@ function CommercialView({ user, setView, setSelectedTask }) {
                                         </div>
                                         <div className="flex flex-col gap-2">
                                             <button
-                                                onClick={async () => {
-                                                    const { data: t } = await supabase.from('tasks').select('*').eq('project_id', p.project_id).limit(1).maybeSingle();
-                                                    if (t) setSelectedTask(t);
-                                                    else alert('No hay tareas operativas vinculadas a este proyecto aún.');
+                                                onClick={() => {
+                                                    if (p.tasks.length > 0) setSelectedTask(p.tasks[0]);
                                                 }}
-                                                className="bg-primary text-primary-foreground text-[10px] font-black px-4 py-2 rounded-xl shadow-lg shadow-primary/20 uppercase tracking-widest hover:scale-105 transition-all"
+                                                disabled={p.tasks.length === 0}
+                                                className={`text-[10px] font-black px-4 py-2 rounded-xl shadow-lg border uppercase tracking-widest transition-all ${p.tasks.length > 0 ? 'bg-primary text-primary-foreground border-primary/20 shadow-primary/20 hover:scale-105' : 'bg-secondary text-muted-foreground border-border opacity-50 cursor-not-allowed'}`}
                                             >
-                                                Explorar Tareas
+                                                {p.tasks.length > 0 ? 'Explorar Tareas' : 'Sin Tareas'}
                                             </button>
-                                            <button
-                                                onClick={() => handleGenerateQuote(p)}
-                                                disabled={generating === p.project_id}
-                                                className={`text-[10px] font-black px-4 py-2 rounded-xl border border-primary/20 uppercase tracking-widest transition-all ${generating === p.project_id ? 'opacity-50 cursor-not-allowed' : 'hover:bg-primary/10'}`}
-                                            >
-                                                {generating === p.project_id ? 'Procesando...' : 'Generar Cotización'}
-                                            </button>
+
+                                            {p.quotes.length > 0 ? (
+                                                p.quotes.map(q => (
+                                                    <a
+                                                        key={q.id}
+                                                        href={q.url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex items-center justify-center gap-2 bg-emerald-500/10 text-emerald-500 text-[10px] font-black px-4 py-2 rounded-xl border border-emerald-500/20 uppercase tracking-widest hover:bg-emerald-500/20 transition-all"
+                                                    >
+                                                        <FileText size={10} />
+                                                        Cotización PDF
+                                                    </a>
+                                                ))
+                                            ) : (
+                                                <button
+                                                    onClick={async () => {
+                                                        await supabase.from('events').insert({
+                                                            source: 'webapp',
+                                                            type: 'quote_requested',
+                                                            meta: { project_id: p.project_id, name: p.name }
+                                                        });
+                                                        alert('Solicitud enviada al Director IA. Te avisaré cuando el documento esté listo.');
+                                                    }}
+                                                    className="text-[10px] font-black px-4 py-2 rounded-xl border border-white/10 text-muted-foreground uppercase tracking-widest hover:bg-white/5 transition-all"
+                                                >
+                                                    Solicitar Cotización
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 );
