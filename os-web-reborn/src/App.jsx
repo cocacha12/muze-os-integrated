@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import { AuditView } from './components/AuditView'
-import { Sun, Moon, Hexagon, ArrowRight, Activity, Command, LayoutDashboard, Briefcase, Target, FileText, CheckCircle2, X } from 'lucide-react'
+import { Sun, Moon, Hexagon, ArrowRight, Activity, Command, LayoutDashboard, Briefcase, Target, FileText, CheckCircle2, X, Clock, User, Zap, ChevronRight, MessageSquare, Paperclip, History, AlertCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { EmptyState } from './components/EmptyState'
 // ... (helpers and App component remain unchanged)
@@ -242,143 +242,248 @@ function HomeView({ stats, user, setView }) {
     );
 }
 
-function TaskDetail({ task, onClose }) {
-    const [activeTab, setActiveTab] = useState('updates');
-    const [updates, setUpdates] = useState([]);
-    const [files, setFiles] = useState([]);
-    const [activity, setActivity] = useState([]);
-    const [newUpdate, setNewUpdate] = useState('');
-
-    useEffect(() => {
-        if (task) {
-            fetchTaskDetails();
-        }
-    }, [task]);
-
-    async function fetchTaskDetails() {
-        const { data: u } = await supabase.from('task_updates').select('*').eq('task_id', task.id).order('created_at', { ascending: false });
-        const { data: f } = await supabase.from('task_files').select('*').eq('task_id', task.id).order('created_at', { ascending: false });
-        const { data: a } = await supabase.from('task_activity').select('*').eq('task_id', task.id).order('created_at', { ascending: false });
-
-        setUpdates(u || []);
-        setFiles(f || []);
-        setActivity(a || []);
-    }
-
-    async function postUpdate() {
-        if (!newUpdate.trim()) return;
-        const { error } = await supabase.from('task_updates').insert([{
-            task_id: task.id,
-            content: newUpdate,
-            author_id: 'Mark' // Mocked current user
-        }]);
-        if (!error) {
-            setNewUpdate('');
-            fetchTaskDetails();
-        }
-    }
-
-    return (
+return (
+    <>
         <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            className="fixed inset-y-0 right-0 w-full md:w-[500px] bg-background border-l border-border shadow-2xl z-50 flex flex-col"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[49]"
+        />
+        <motion.div
+            initial={{ x: '100%', opacity: 0.5 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: '100%', opacity: 0.5 }}
+            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className="fixed inset-y-0 right-0 w-full md:w-[600px] bg-background border-l border-border shadow-[0_0_50px_rgba(0,0,0,0.5)] z-50 flex flex-col overflow-hidden"
         >
-            <div className="p-6 border-b border-border flex justify-between items-start">
-                <div>
-                    <div className="flex items-center gap-2 mb-2">
-                        <span className="text-[10px] font-black uppercase bg-primary/20 text-primary px-2 py-1 rounded-full">{task.priority}</span>
+            {/* Header Section */}
+            <div className="relative p-8 border-b border-border/50 bg-secondary/20">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-[100px] -z-10" />
+
+                <div className="flex justify-between items-start mb-6">
+                    <div className="flex gap-2">
                         <Badge status={task.status} />
+                        <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-full border ${task.priority === 'high' || task.priority === 'critical'
+                                ? 'bg-destructive/10 text-destructive border-destructive/20'
+                                : 'bg-secondary text-muted-foreground border-border'
+                            }`}>
+                            {task.priority} priority
+                        </span>
                     </div>
-                    <h2 className="text-xl font-black tracking-tight">{task.title}</h2>
-                    <p className="text-xs text-muted-foreground mt-1">{task.objective}</p>
-                </div>
-                <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
-                    <X size={20} />
-                </button>
-            </div>
-
-            <div className="flex p-2 gap-1 border-b border-border bg-white/5">
-                {['updates', 'files', 'activity'].map(t => (
-                    <button
-                        key={t}
-                        onClick={() => setActiveTab(t)}
-                        className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === t ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-white'}`}
-                    >
-                        {t}
+                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl transition-all hover:rotate-90">
+                        <X size={20} />
                     </button>
-                ))}
+                </div>
+
+                <h2 className="text-3xl font-black tracking-tighter mb-2 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent italic">
+                    {task.title}
+                </h2>
+
+                <div className="flex flex-wrap gap-4 mt-6">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-background/50 rounded-lg border border-border/50">
+                        <User size={12} className="text-primary" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider">{task.owner || 'Unassigned'}</span>
+                    </div>
+                    {task.due_date && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-background/50 rounded-lg border border-border/50">
+                            <Clock size={12} className="text-amber-400" />
+                            <span className="text-[10px] font-bold uppercase tracking-wider">{new Date(task.due_date).toLocaleDateString()}</span>
+                        </div>
+                    )}
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-lg border border-primary/20">
+                        <Zap size={12} className="text-primary animate-pulse" />
+                        <span className="text-[10px] font-black uppercase text-primary tracking-[0.1em]">{task.area || 'General'}</span>
+                    </div>
+                </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
-                {activeTab === 'updates' && (
-                    <div className="space-y-6">
-                        <div className="space-y-3">
-                            <textarea
-                                value={newUpdate}
-                                onChange={(e) => setNewUpdate(e.target.value)}
-                                placeholder="Escribe una actualización..."
-                                className="w-full bg-white/5 border border-border rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all min-h-[100px]"
-                            />
+            {/* Content Area */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="p-8 pb-4">
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-3">Objective & Context</h4>
+                    <div className="bg-secondary/30 rounded-2xl p-5 border border-border/50 relative overflow-hidden group">
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary/30 group-hover:bg-primary transition-colors" />
+                        <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                            {task.objective || 'No objective defined for this task.'}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Navigation Tabs */}
+                <div className="px-8 mb-4">
+                    <div className="flex p-1 gap-1 border border-border/50 bg-secondary/50 rounded-xl">
+                        {[
+                            { id: 'updates', label: 'Feed', icon: MessageSquare },
+                            { id: 'files', label: 'Assets', icon: Paperclip },
+                            { id: 'activity', label: 'Log', icon: History }
+                        ].map(tab => (
                             <button
-                                onClick={postUpdate}
-                                className="w-full bg-primary text-primary-foreground py-2 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20"
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === tab.id
+                                        ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
+                                        : 'text-muted-foreground hover:bg-white/5 hover:text-white'
+                                    }`}
                             >
-                                Publicar Actualización
+                                <tab.icon size={12} />
+                                {tab.label}
                             </button>
-                        </div>
-                        <div className="space-y-4">
-                            {updates.map(upd => (
-                                <div key={upd.id} className="card p-4 space-y-2">
-                                    <div className="flex justify-between items-center">
-                                        <span className="font-black text-[10px] uppercase text-primary">{upd.author_id}</span>
-                                        <span className="text-[9px] text-muted-foreground uppercase">{new Date(upd.created_at).toLocaleString()}</span>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Scrollable Feed */}
+                <div className="flex-1 overflow-y-auto px-8 custom-scrollbar">
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={activeTab}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            transition={{ duration: 0.2 }}
+                            className="pb-8"
+                        >
+                            {activeTab === 'updates' && (
+                                <div className="space-y-6">
+                                    <div className="relative group">
+                                        <textarea
+                                            value={newUpdate}
+                                            onChange={(e) => setNewUpdate(e.target.value)}
+                                            placeholder="Write a status update or internal note..."
+                                            className="w-full bg-secondary/30 border border-border/50 rounded-2xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all min-h-[120px] resize-none"
+                                        />
+                                        <button
+                                            onClick={postUpdate}
+                                            disabled={!newUpdate.trim()}
+                                            className="absolute bottom-3 right-3 bg-primary text-primary-foreground p-2 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100"
+                                        >
+                                            Send Update
+                                        </button>
                                     </div>
-                                    <p className="text-sm leading-relaxed">{upd.content}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
 
-                {activeTab === 'files' && (
-                    <div className="grid grid-cols-2 gap-4">
-                        {files.length === 0 ? (
-                            <div className="col-span-2 py-12 text-center text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">No hay archivos adjuntos</div>
-                        ) : files.map(file => (
-                            <div key={file.id} className="card p-3 flex flex-col gap-2 group cursor-pointer hover:border-primary/50 transition-colors">
-                                <div className="aspect-square bg-white/5 rounded-lg flex items-center justify-center text-primary/40 group-hover:text-primary transition-colors">
-                                    <FileText size={32} strokeWidth={1} />
+                                    <div className="space-y-4">
+                                        {updates.length === 0 && (
+                                            <div className="text-center py-12 border border-dashed border-border rounded-2xl">
+                                                <MessageSquare size={32} className="mx-auto text-muted-foreground/20 mb-3" />
+                                                <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">No updates yet</span>
+                                            </div>
+                                        )}
+                                        {updates.map((upd, i) => (
+                                            <motion.div
+                                                key={upd.id}
+                                                initial={{ opacity: 0, x: -10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ delay: i * 0.05 }}
+                                                className="bg-secondary/20 p-5 rounded-2xl border border-border/40 hover:border-primary/30 transition-colors"
+                                            >
+                                                <div className="flex justify-between items-center mb-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="p-1.5 bg-primary/10 rounded-lg">
+                                                            <User size={10} className="text-primary" />
+                                                        </div>
+                                                        <span className="font-black text-[10px] uppercase tracking-wider text-primary">{upd.author_id}</span>
+                                                    </div>
+                                                    <span className="text-[9px] text-muted-foreground font-bold">{new Date(upd.created_at).toLocaleDateString()}</span>
+                                                </div>
+                                                <p className="text-sm leading-relaxed text-foreground/80">{upd.content}</p>
+                                            </motion.div>
+                                        ))}
+                                    </div>
                                 </div>
-                                <div className="flex flex-col">
-                                    <span className="font-bold text-[10px] truncate">{file.name}</span>
-                                    <span className="text-[8px] text-muted-foreground uppercase">{file.type} · {(file.size / 1024).toFixed(1)} KB</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                            )}
 
-                {activeTab === 'activity' && (
-                    <div className="space-y-4">
-                        {activity.map(act => (
-                            <div key={act.id} className="flex gap-4 items-start">
-                                <div className="mt-1 w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(38,204,192,0.8)]" />
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-xs font-bold leading-none">
-                                        <span className="text-primary font-black uppercase text-[9px] mr-2">{act.actor}</span>
-                                        {act.action === 'status_changed' ? `cambió el estado a ${act.details?.new}` : act.action}
-                                    </span>
-                                    <span className="text-[9px] text-muted-foreground uppercase">{new Date(act.created_at).toLocaleString()}</span>
+                            {activeTab === 'files' && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    {files.length === 0 ? (
+                                        <div className="col-span-2 py-20 text-center border border-dashed border-border rounded-2xl">
+                                            <Paperclip size={40} className="mx-auto text-muted-foreground/20 mb-4" />
+                                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest leading-loose">
+                                                No assets attached<br />to this operation
+                                            </span>
+                                        </div>
+                                    ) : files.map(file => (
+                                        <div key={file.id} className="bg-secondary/20 p-4 rounded-xl flex flex-col gap-3 group cursor-pointer border border-border/40 hover:border-primary/50 transition-all hover:-translate-y-1">
+                                            <div className="aspect-video bg-slate-900 rounded-lg flex items-center justify-center text-primary/40 group-hover:text-primary transition-colors border border-white/5 relative overflow-hidden">
+                                                <FileText size={32} strokeWidth={1} />
+                                                <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-[11px] truncate group-hover:text-primary transition-colors">{file.name}</span>
+                                                <span className="text-[9px] text-muted-foreground uppercase mt-0.5 tracking-tighter">
+                                                    {file.type} · {(file.size / 1024).toFixed(1)} KB
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                            )}
+
+                            {activeTab === 'activity' && (
+                                <div className="space-y-4 relative">
+                                    <div className="absolute left-3 top-2 bottom-2 w-px bg-border/50" />
+                                    {activity.length === 0 && (
+                                        <div className="text-center py-20">
+                                            <History size={40} className="mx-auto text-muted-foreground/20 mb-4" />
+                                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Awaiting system events</span>
+                                        </div>
+                                    )}
+                                    {activity.map((act, i) => (
+                                        <motion.div
+                                            key={act.id}
+                                            initial={{ opacity: 0, x: -5 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: i * 0.03 }}
+                                            className="flex gap-6 items-start relative pl-2"
+                                        >
+                                            <div className="mt-1.5 w-2 h-2 rounded-full bg-primary ring-4 ring-primary/10 shadow-[0_0_10px_rgba(38,204,192,0.5)] z-10" />
+                                            <div className="flex flex-col gap-1.5 bg-secondary/10 p-4 rounded-2xl border border-border/30 flex-1">
+                                                <span className="text-[11px] font-bold leading-tight flex items-center justify-between">
+                                                    <span>
+                                                        <span className="text-primary font-black uppercase text-[10px] mr-2">{act.actor}</span>
+                                                        <span className="text-foreground/70">
+                                                            {act.action === 'status_changed' ? `Transitioned status to` : act.action.replace(/_/g, ' ')}
+                                                        </span>
+                                                        {act.action === 'status_changed' && (
+                                                            <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary rounded text-[9px] uppercase font-black">
+                                                                {act.details?.new}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                </span>
+                                                <span className="text-[9px] text-muted-foreground uppercase flex items-center gap-1">
+                                                    <Clock size={8} />
+                                                    {new Date(act.created_at).toLocaleString()}
+                                                </span>
+                                            </div>
+                                        </motion.div>
+                                    ))}
+                                </div>
+                            )}
+                        </motion.div>
+                    </AnimatePresence>
+                </div>
+            </div>
+
+            {/* Footer Action */}
+            <div className="p-8 border-t border-border/50 bg-secondary/10 flex justify-between items-center">
+                <div className="flex flex-col">
+                    <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Task Status Management</span>
+                    <span className="text-xs font-bold">Manual controls enabled</span>
+                </div>
+                <div className="flex gap-2">
+                    <button className="px-4 py-2 bg-secondary border border-border rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">
+                        Mark Blocked
+                    </button>
+                    <button className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:scale-105 transition-all">
+                        Finalize Task
+                    </button>
+                </div>
             </div>
         </motion.div>
-    );
+    </>
+);
 }
 
 function StatCard({ label, value, color = "" }) {
