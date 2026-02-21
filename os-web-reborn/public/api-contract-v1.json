@@ -1,6 +1,6 @@
 {
   "name": "muze-os-api",
-  "version": "1.2.0",
+  "version": "1.2.2",
   "basePath": "/",
   "principles": [
     "single-source-of-truth",
@@ -122,11 +122,12 @@
       "priority": "low|medium|high|critical",
       "area": "finance|commercial|consulting|system",
       "due_date": "ISO-8601 date",
-      "linked_project_id": "UUID of the associated project",
-      "linked_quote_id": "UUID of the associated quote"
+      "linked_project_id": "UUID (id) of the associated project",
+      "linked_quote_id": "UUID (id) of the associated quote"
     },
     "project": {
-      "project_id": "UUID",
+      "id": "UUID (primary identifier for linking)",
+      "project_id": "Slug/Human ID",
       "name": "Project name",
       "stage": "lead|meeting|proposal|negotiation|won|lost",
       "amount": "Number",
