@@ -26,7 +26,20 @@ function App() {
 
     useEffect(() => {
         checkUser();
+        // Simple Hash Routing
+        const handleHash = () => {
+            const hash = window.location.hash.replace('#/', '') || 'home';
+            const validViews = ['home', 'operations', 'finance', 'commercial', 'audit'];
+            if (validViews.includes(hash)) setView(hash);
+        };
+        window.addEventListener('hashchange', handleHash);
+        handleHash();
+        return () => window.removeEventListener('hashchange', handleHash);
     }, []);
+
+    useEffect(() => {
+        if (view) window.location.hash = `#/${view}`;
+    }, [view]);
 
     useEffect(() => {
         document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -409,7 +422,7 @@ function OperationsView({ user, setView }) {
     useEffect(() => { fetchTasks(); }, []);
 
     async function fetchTasks() {
-        const { data } = await supabase.from('tasks').select('*').order('due_date', { ascending: true });
+        const { data } = await supabase.from('tasks').select('*').order('created_at', { ascending: false });
         setTasks(data || []);
         setLoading(false);
     }
@@ -422,7 +435,7 @@ function OperationsView({ user, setView }) {
 
     if (loading) return null;
 
-    const kanbanStatuses = ['todo', 'in_progress', 'blocked', 'done'];
+    const kanbanStatuses = ['backlog', 'todo', 'in_progress', 'blocked', 'done'];
 
     return (
         <div className="flex flex-col gap-6">
@@ -696,7 +709,9 @@ function Badge({ status }) {
         done: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
         blocked: 'text-destructive bg-destructive/10 border-destructive/20',
         in_progress: 'text-primary bg-primary/10 border-primary/20',
-        todo: 'text-muted-foreground bg-muted border-border'
+        doing: 'text-primary bg-primary/10 border-primary/20',
+        todo: 'text-muted-foreground bg-muted border-border',
+        backlog: 'text-muted-foreground/50 bg-muted/30 border-border/50'
     };
     return (
         <span className={`text-[9px] uppercase font-black px-2.5 py-1 rounded-full border ${styles[status] || styles.todo}`}>
@@ -831,7 +846,7 @@ function CommercialView({ user, setView }) {
                                         <div className="flex flex-col items-center">
                                             <div className="text-[9px] text-muted-foreground font-black uppercase tracking-widest mb-2">Stage</div>
                                             <span className={`text-[10px] font-black px-3 py-1 rounded-full border ${badgeStyle}`}>
-                                                {p.stage.replace(/_/g, ' ')}
+                                                {(p.stage || 'lead').replace(/_/g, ' ')}
                                             </span>
                                         </div>
                                         <div className="flex flex-col gap-2">

@@ -1,6 +1,6 @@
 {
   "name": "muze-os-api",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "basePath": "/",
   "principles": [
     "single-source-of-truth",
@@ -118,7 +118,7 @@
       "title": "Short summary of the task",
       "objective": "Detailed description of what needs to be done",
       "owner": "Name or ID of the assigned person/agent",
-      "status": "backlog|todo|doing|done|cancelled",
+      "status": "backlog|todo|in_progress|blocked|done",
       "priority": "low|medium|high|critical",
       "area": "finance|commercial|consulting|system",
       "due_date": "ISO-8601 date",
