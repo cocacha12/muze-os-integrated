@@ -4,9 +4,6 @@ import { AuditView } from './components/AuditView'
 import { Sun, Moon, Hexagon, ArrowRight, Activity, Command, LayoutDashboard, Briefcase, Target, FileText, CheckCircle2, X, Clock, User, Zap, ChevronRight, MessageSquare, Paperclip, History, AlertCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { EmptyState } from './components/EmptyState'
-// ... (helpers and App component remain unchanged)
-// To keep the replace tool focused, I will use multi_replace for specific functions instead of trying to replace from the top imports down to HomeView, which is too large of a block.
-
 // Formatting helpers
 const CLP = n => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(n || 0));
 
@@ -16,6 +13,7 @@ function App() {
     const [loading, setLoading] = useState(true);
     const [theme, setTheme] = useState('dark');
     const [entities, setEntities] = useState([]);
+    const [selectedTask, setSelectedTask] = useState(null);
     const [stats, setStats] = useState({
         open: 0,
         inProgress: 0,
@@ -184,7 +182,7 @@ function App() {
                             {view === 'home' && <HomeView stats={stats} user={user} setView={setView} />}
                             {view === 'finance' && <FinanceView user={user} setView={setView} />}
                             {view === 'commercial' && <CommercialView user={user} setView={setView} />}
-                            {view === 'operations' && <OperationsView user={user} setView={setView} entities={entities} />}
+                            {view === 'operations' && <OperationsView user={user} setView={setView} entities={entities} setSelectedTask={setSelectedTask} />}
                             {view === 'audit' && <AuditView user={user} />}
                         </motion.div>
                     </AnimatePresence>
@@ -620,12 +618,12 @@ function ModuleCard({ title, desc, icon: Icon, onClick }) {
     )
 }
 
-function OperationsView({ user, setView, entities }) {
+function OperationsView({ user, setView, entities, setSelectedTask }) {
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('');
     const [activeTab, setActiveTab] = useState('kanban');
-    const [selectedTask, setSelectedTask] = useState(null);
+    // selectedTask moved to App
 
     useEffect(() => { fetchTasks(); }, []);
 
@@ -942,6 +940,7 @@ function Badge({ status }) {
 
 function CommercialView({ user, setView }) {
     const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(null);
 
     useEffect(() => { fetchCommercial(); }, []);
@@ -997,15 +996,18 @@ function CommercialView({ user, setView }) {
         const hierarchy = accounts?.map(acc => ({
             customer: acc.name,
             account: acc,
-            projects: projects?.filter(p => p.account_id === acc.id).map(p => ({
+            projects: projects?.filter(p => (p.account_id || '').toLowerCase() === (acc.account_id || '').toLowerCase()).map(p => ({
                 ...p,
-                quotes: quotes?.filter(q => q.project_id === p.project_id) || []
+                quotes: quotes?.filter(q => (q.project_id || '').toLowerCase() === (p.project_id || '').toLowerCase()) || []
             })) || []
         })) || [];
 
         const stats = {
             open: projects?.length || 0,
-            in_progress: projects?.filter(p => p.stage !== 'payment_received' && p.stage !== 'lost').length || 0,
+            in_progress: projects?.filter(p => {
+                const stage = (p.stage || '').toLowerCase();
+                return stage !== 'payment_received' && stage !== 'lost';
+            }).length || 0,
             value: projects?.reduce((a, b) => a + Number(b.amount || 0), 0) || 0
         };
 
@@ -1051,7 +1053,8 @@ function CommercialView({ user, setView }) {
                                     development: 'bg-primary/10 text-primary border-primary/20',
                                     lost: 'bg-destructive/10 text-destructive border-destructive/20'
                                 };
-                                const badgeStyle = stageStyles[p.stage] || stageStyles.development;
+                                const currentStage = (p.stage || 'lead').toLowerCase();
+                                const badgeStyle = stageStyles[currentStage] || stageStyles.development;
 
                                 return (
                                     <div key={p.project_id} className="card p-6 grid grid-cols-1 md:grid-cols-4 gap-6 items-center hover:bg-primary/5">
