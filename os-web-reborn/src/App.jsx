@@ -181,7 +181,7 @@ function App() {
                         >
                             {view === 'home' && <HomeView stats={stats} user={user} setView={setView} />}
                             {view === 'finance' && <FinanceView user={user} setView={setView} />}
-                            {view === 'commercial' && <CommercialView user={user} setView={setView} />}
+                            {view === 'commercial' && <CommercialView user={user} setView={setView} setSelectedTask={setSelectedTask} />}
                             {view === 'operations' && <OperationsView user={user} setView={setView} entities={entities} setSelectedTask={setSelectedTask} />}
                             {view === 'audit' && <AuditView user={user} />}
                         </motion.div>
@@ -1010,7 +1010,7 @@ function Badge({ status }) {
     )
 }
 
-function CommercialView({ user, setView }) {
+function CommercialView({ user, setView, setSelectedTask }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(null);
@@ -1145,15 +1145,22 @@ function CommercialView({ user, setView }) {
                                             </span>
                                         </div>
                                         <div className="flex flex-col gap-2">
-                                            <button className="bg-primary text-primary-foreground text-[10px] font-black px-4 py-2 rounded-xl shadow-lg shadow-primary/20 uppercase tracking-widest">
-                                                Ver Detalles
+                                            <button
+                                                onClick={async () => {
+                                                    const { data: t } = await supabase.from('tasks').select('*').eq('project_id', p.project_id).limit(1).maybeSingle();
+                                                    if (t) setSelectedTask(t);
+                                                    else alert('No hay tareas operativas vinculadas a este proyecto aún.');
+                                                }}
+                                                className="bg-primary text-primary-foreground text-[10px] font-black px-4 py-2 rounded-xl shadow-lg shadow-primary/20 uppercase tracking-widest hover:scale-105 transition-all"
+                                            >
+                                                Explorar Tareas
                                             </button>
                                             <button
                                                 onClick={() => handleGenerateQuote(p)}
                                                 disabled={generating === p.project_id}
                                                 className={`text-[10px] font-black px-4 py-2 rounded-xl border border-primary/20 uppercase tracking-widest transition-all ${generating === p.project_id ? 'opacity-50 cursor-not-allowed' : 'hover:bg-primary/10'}`}
                                             >
-                                                {generating === p.project_id ? 'Generando...' : 'Generar PDF'}
+                                                {generating === p.project_id ? 'Procesando...' : 'Generar Cotización'}
                                             </button>
                                         </div>
                                     </div>
