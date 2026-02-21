@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import { AuditView } from './components/AuditView'
-import { Sun, Moon, Hexagon, ArrowRight, Activity, Command, LayoutDashboard, Briefcase, Target, FileText, CheckCircle2, X, Clock, User, Zap, ChevronRight, MessageSquare, Paperclip, History, AlertCircle } from 'lucide-react'
+import { Sun, Moon, Hexagon, ArrowRight, Activity, Command, LayoutDashboard, Briefcase, Target, FileText, CheckCircle2, X, Clock, User, Zap, ChevronRight, MessageSquare, Paperclip, History, AlertCircle, Sparkles } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { EmptyState } from './components/EmptyState'
 // Formatting helpers
