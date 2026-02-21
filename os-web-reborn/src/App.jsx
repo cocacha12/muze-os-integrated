@@ -253,8 +253,80 @@ function HomeView({ stats, user, setView }) {
                     onClick={() => setView('commercial')}
                 />
             </section>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                    <LiveAuditWidget />
+                </div>
+                <div className="card h-full flex flex-col justify-center items-center text-center p-8 border-dashed opacity-50">
+                    <Sparkles size={32} className="text-primary mb-4" />
+                    <h4 className="text-xs font-black uppercase tracking-widest">IA Intelligence Center</h4>
+                    <p className="text-[10px] mt-2">Monitoreando 5 hilos de pensamiento en paralelo.</p>
+                </div>
+            </div>
         </div>
     );
+}
+
+function LiveAuditWidget() {
+    const [events, setEvents] = useState([]);
+
+    useEffect(() => {
+        const fetch = async () => {
+            const { data } = await supabase.from('events').select('*').order('ts', { ascending: false }).limit(5);
+            setEvents(data || []);
+        };
+        fetch();
+        const sub = supabase.channel('home_audit').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, fetch).subscribe();
+        return () => supabase.removeChannel(sub);
+    }, []);
+
+    return (
+        <div className="card p-0 overflow-hidden border-primary/20 bg-primary/5">
+            <div className="p-4 border-b border-primary/20 bg-primary/10 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <TerminalSquare size={14} className="text-primary" />
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Live Operations Trace</h3>
+                </div>
+                <div className="flex gap-2">
+                    <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
+                </div>
+            </div>
+            <div className="divide-y divide-primary/10">
+                {events.map((ev, i) => (
+                    <div key={ev.id} className="p-3 flex items-center justify-between hover:bg-white/5 transition-colors">
+                        <div className="flex items-center gap-3">
+                            <div className="text-[9px] font-mono text-primary/60">{new Date(ev.ts).toLocaleTimeString()}</div>
+                            <div className="text-[10px] font-black uppercase tracking-tight">{ev.type.replace(/_/g, ' ')}</div>
+                        </div>
+                        <div className="text-[10px] font-bold text-muted-foreground italic truncate max-w-[200px]">
+                            {ev.source} → {ev.content_after?.status || 'Executed'}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}
+
+function TerminalSquare({ size, className }) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={className}
+        >
+            <rect width="18" height="18" x="3" y="3" rx="2" />
+            <path d="m7 11 2-2-2-2" />
+            <path d="M11 13h4" />
+        </svg>
+    )
 }
 
 function TaskDetail({ task, onClose, entities }) {
