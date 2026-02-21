@@ -1066,6 +1066,7 @@ function CommercialView({ user, setView, setSelectedTask }) {
         const { data: projects } = await supabase.from('projects').select('*');
         const { data: tasks } = await supabase.from('tasks').select('*');
         const { data: files } = await supabase.from('task_files').select('*');
+        const { data: dbQuotes } = await supabase.from('quotes').select('*');
 
         const hierarchy = accounts?.map(acc => ({
             customer: acc.name,
@@ -1073,12 +1074,23 @@ function CommercialView({ user, setView, setSelectedTask }) {
             projects: projects?.filter(p => (p.account_id || '').toLowerCase() === (acc.account_id || '').toLowerCase()).map(p => {
                 const projectTasks = tasks?.filter(t => (t.project_id || '').toLowerCase() === (p.project_id || '').toLowerCase()) || [];
                 const projectFiles = files?.filter(f => projectTasks.some(t => t.id === f.task_id)) || [];
-                const quotes = projectFiles.filter(f => f.name.toLowerCase().includes('cotización') || f.name.toLowerCase().includes('proposal'));
+
+                const qFromFiles = projectFiles.filter(f => f.name.toLowerCase().includes('cotización') || f.name.toLowerCase().includes('proposal')).map(f => ({
+                    id: f.id,
+                    name: f.name,
+                    url: f.url
+                }));
+
+                const qFromTable = dbQuotes?.filter(q => (q.project_id || '').toLowerCase() === (p.project_id || '').toLowerCase()).map(q => ({
+                    id: q.id,
+                    name: 'Cotización Oficial',
+                    url: q.pdf_url
+                })) || [];
 
                 return {
                     ...p,
                     tasks: projectTasks,
-                    quotes
+                    quotes: [...qFromTable, ...qFromFiles]
                 };
             }) || []
         })) || [];
@@ -1159,7 +1171,7 @@ function CommercialView({ user, setView, setSelectedTask }) {
                                                     if (p.tasks.length > 0) setSelectedTask(p.tasks[0]);
                                                 }}
                                                 disabled={p.tasks.length === 0}
-                                                className={`text-[10px] font-black px-4 py-2 rounded-xl shadow-lg border uppercase tracking-widest transition-all ${p.tasks.length > 0 ? 'bg-primary text-primary-foreground border-primary/20 shadow-primary/20 hover:scale-105' : 'bg-secondary text-muted-foreground border-border opacity-50 cursor-not-allowed'}`}
+                                                className={`text-[10px] font-black px-4 py-2 rounded-xl shadow-lg border uppercase tracking-widest transition-all ${p.tasks.length > 0 ? 'bg-primary text-primary-foreground border-primary/20 shadow-primary/20 hover:scale-105' : 'bg-secondary/50 text-muted-foreground/30 border-border opacity-50 cursor-not-allowed'}`}
                                             >
                                                 {p.tasks.length > 0 ? 'Explorar Tareas' : 'Sin Tareas'}
                                             </button>
@@ -1171,26 +1183,16 @@ function CommercialView({ user, setView, setSelectedTask }) {
                                                         href={q.url}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="flex items-center justify-center gap-2 bg-emerald-500/10 text-emerald-500 text-[10px] font-black px-4 py-2 rounded-xl border border-emerald-500/20 uppercase tracking-widest hover:bg-emerald-500/20 transition-all"
+                                                        className="flex items-center justify-center gap-2 bg-emerald-500/10 text-emerald-500 text-[10px] font-black px-4 py-2 rounded-xl border border-emerald-500/20 uppercase tracking-widest hover:bg-emerald-500/20 transition-all font-mono"
                                                     >
                                                         <FileText size={10} />
-                                                        Cotización PDF
+                                                        PDF Cotización
                                                     </a>
                                                 ))
                                             ) : (
-                                                <button
-                                                    onClick={async () => {
-                                                        await supabase.from('events').insert({
-                                                            source: 'webapp',
-                                                            type: 'quote_requested',
-                                                            meta: { project_id: p.project_id, name: p.name }
-                                                        });
-                                                        alert('Solicitud enviada al Director IA. Te avisaré cuando el documento esté listo.');
-                                                    }}
-                                                    className="text-[10px] font-black px-4 py-2 rounded-xl border border-white/10 text-muted-foreground uppercase tracking-widest hover:bg-white/5 transition-all"
-                                                >
-                                                    Solicitar Cotización
-                                                </button>
+                                                <div className="text-[10px] font-black px-4 py-3 rounded-xl border border-dashed border-border text-muted-foreground/20 uppercase tracking-widest text-center bg-secondary/20">
+                                                    Sin Cotización
+                                                </div>
                                             )}
                                         </div>
                                     </div>
