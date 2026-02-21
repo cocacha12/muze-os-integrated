@@ -272,7 +272,7 @@ Deno.serve(async (req) => {
                     const owner = url.searchParams.get('owner')
                     const status = url.searchParams.get('status')
                     let query = supabaseAdmin.from('tasks').select('*')
-                    if (owner) query = query.eq('owner_id', owner)
+                    if (owner) query = query.eq('owner', owner)
                     if (status) query = query.eq('status', status)
                     const { data: tasks, error } = await query
                     if (error) throw error

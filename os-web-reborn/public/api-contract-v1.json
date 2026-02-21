@@ -111,5 +111,34 @@
     "before": "object|null",
     "after": "object|null",
     "meta": "object"
+  },
+  "schemas": {
+    "task": {
+      "id": "UUID (read-only)",
+      "title": "Short summary of the task",
+      "objective": "Detailed description of what needs to be done",
+      "owner": "Name or ID of the assigned person/agent",
+      "status": "backlog|todo|doing|done|cancelled",
+      "priority": "low|medium|high|critical",
+      "area": "finance|commercial|consulting|system",
+      "due_date": "ISO-8601 date",
+      "linked_project_id": "UUID of the associated project",
+      "linked_quote_id": "UUID of the associated quote"
+    },
+    "project": {
+      "project_id": "UUID",
+      "name": "Project name",
+      "stage": "lead|meeting|proposal|negotiation|won|lost",
+      "amount": "Number",
+      "account_id": "UUID of the client company"
+    },
+    "finance_revenue": {
+      "id": "UUID",
+      "net": "Net amount",
+      "iva": "IVA amount (19%)",
+      "total": "Total amount",
+      "status": "pending|paid",
+      "issued_at": "ISO-8601"
+    }
   }
 }
