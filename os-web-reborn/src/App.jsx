@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import { AuditView } from './components/AuditView'
-import { Sun, Moon, Hexagon, ArrowRight, Activity, Command, LayoutDashboard, Briefcase, Target, FileText, CheckCircle2 } from 'lucide-react'
+import { Sun, Moon, Hexagon, ArrowRight, Activity, Command, LayoutDashboard, Briefcase, Target, FileText, CheckCircle2, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { EmptyState } from './components/EmptyState'
 // ... (helpers and App component remain unchanged)
@@ -279,7 +279,7 @@ function TaskDetail({ task, onClose }) {
                         <Badge status={task.status} />
                     </div>
                     <h2 className="text-xl font-black tracking-tight">{task.title}</h2>
-                    <p className="text-xs text-muted-foreground mt-1">{task.description}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{task.objective}</p>
                 </div>
                 <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
                     <X size={20} />
@@ -355,7 +355,7 @@ function TaskDetail({ task, onClose }) {
                                 <div className="flex flex-col gap-1">
                                     <span className="text-xs font-bold leading-none">
                                         <span className="text-primary font-black uppercase text-[9px] mr-2">{act.actor}</span>
-                                        {act.action === 'status_changed' ? `cambió el estado a ${act.details.new}` : act.action}
+                                        {act.action === 'status_changed' ? `cambió el estado a ${act.details?.new}` : act.action}
                                     </span>
                                     <span className="text-[9px] text-muted-foreground uppercase">{new Date(act.created_at).toLocaleString()}</span>
                                 </div>
@@ -496,7 +496,7 @@ function OperationsView({ user, setView }) {
                                             <h4 className="font-bold text-sm leading-tight text-white">{t.title}</h4>
                                             <span className="text-[10px] font-black uppercase bg-primary/20 text-primary px-2 py-1 rounded-full">{t.priority}</span>
                                         </div>
-                                        <p className="text-xs text-muted-foreground line-clamp-3">{t.description}</p>
+                                        <p className="text-xs text-muted-foreground line-clamp-3">{t.objective}</p>
                                         {t.due_date && <div className="text-[10px] text-muted-foreground/80 font-mono mt-2">Due: {t.due_date}</div>}
                                     </motion.div>
                                 ))}
@@ -699,8 +699,8 @@ function Badge({ status }) {
         todo: 'text-muted-foreground bg-muted border-border'
     };
     return (
-        <span className={`text-[9px] uppercase font-black px-2.5 py-1 rounded-full border ${styles[status]}`}>
-            {status.replace('_', ' ')}
+        <span className={`text-[9px] uppercase font-black px-2.5 py-1 rounded-full border ${styles[status] || styles.todo}`}>
+            {(status || 'unknown').replace('_', ' ')}
         </span>
     )
 }
