@@ -15,46 +15,37 @@ Muze OS Reborn es un hub operativo agéntico diseñado bajo el paradigma **"Todo
 - **Regla para el Agente**: Siempre consulta el repositorio para obtener el contexto más reciente antes de realizar operaciones críticas de CRUD. La documentación local y remota son idénticas y se actualizan en tiempo real.
 
 ## 3. Acceso y Autenticación
-- **Base URL**: `https://uajdytklnstnujwpsldl.supabase.co/functions/v1/muze-os-api`
+- **Base URL**: `https://bubblfvliussddwvxdhy.supabase.co/functions/v1/muze-os-api`
 - **Contrato del API**: `/public/api-contract-v1.json` (Consúltalo siempre para descubrir endpoints).
 - **Headers Requeridos**:
     - `Authorization: Bearer [SUPABASE_ANON_KEY]`
     - `Idempotency-Key: [UUID_UNICO]` (Requerido para mutaciones POST/PATCH).
 
-## 3. Capacidades Principales (Omnipotencia Agéntica)
-El agente tiene control **total y absoluto** (CRUD) sobre las siguientes entidades mediante el API:
-- **Tasks**: Gestión de Kanban operacional. Soporta `updates`, `files` y `activity`.
-- **Finance**: Gestión completa de `revenues` (ingresos) y `expenses` (egresos). El agente puede registrar facturas, actualizar pagos y proyectar flujos de caja.
-- **Accounts**: Gestión de la base de datos de clientes y contactos.
-- **Projects**: Seguimiento del pipeline comercial y transiciones de etapa.
-- **Quotes**: Generación y registro de propuestas comerciales.
+## 3. Interfaz de Comunicación: Code Mode MCP
+Este es el canal **primario** de operación para el Agente. En lugar de docenas de herramientas específicas, el servidor MCP (`muze-mcp-server`) exporta solo dos:
 
-## 4. Protocolos Operativos (Reglas de Oro)
+### A. `search(code)`
+Permite al agente navegar por el contrato técnico (`api-contract-v1.json`) escribiendo código JS. 
+- **Propósito**: Descubrir endpoints, parámetros y esquemas de respuesta sin saturar el contexto.
+- **Payload**: El agente recibe un objeto `spec` y debe retornar la parte relevante.
 
-### A. Operador Financiero Autónomo
-Como agente, tienes permiso para:
-1.  **Registrar Ingresos**: Al recibir confirmación de pago o emisión de factura.
-2.  **Gestionar Gastos**: Categorizar y actualizar los egresos mensuales.
-3.  **Auditoría Continua**: Cruzar los datos de `commercial_projects` con `finance_revenues` para asegurar consistencia.
+### B. `execute(code)`
+Permite al agente ejecutar lógica compleja de forma autónoma en un entorno sandboxed.
+- **Propósito**: Realizar operaciones CRUD, encadenar llamadas (ej. crear tarea + actualizar proyecto) y manejar respuestas en un solo round-trip.
+- **Inyección**: El sandbox provee el objeto `muze`, el cual tiene el método `request({ method, path, body })`.
 
-### A. Vínculo Documental Automático
-Siempre que generes un documento (ej. Cotización PDF), DEBES:
-1.  Identificar el `project_id` relacionado.
-2.  Buscar la tarea asociada a ese proyecto en la tabla `tasks`.
-3.  Registrar el archivo en `task_files` y documentar la acción en `task_activity`.
+## 4. El Contrato de Herramientas (The Knowledge)
+El archivo [api-contract-v1.json](./os-web-reborn/public/api-contract-v1.json) es el mapa del tesoro. **NO es un API para llamar manualmente en cada turno**, sino la base de datos que la herramienta `search()` consulta para que el Agente sepa *qué* código escribir en `execute()`.
 
-### B. Gestión de Clientes Especiales (CERMAQ)
-- Si el proyecto es para **Cermaq**, el estado `oc_sent` requiere el código **HES**.
-- Si detectas que falta el HES, debes crear una tarea de seguimiento en el área de Finanzas.
+## 5. Protocolos Operativos (Reglas de Oro)
 
-### C. Trazabilidad de IA
-- Cada acción realizada por la IA en la base de datos debe incluir `actor: "Director IA"` en el JSON de la solicitud.
-- Usa descriptores claros en la columna `note` al actualizar etapas comerciales.
+### A. Operador Autónomo via Code Mode
+Como agente, DEBES preferir el uso de `execute()` para:
+1.  **Transacciones Atómicas**: Si necesitas mover un estado comercial y crear una tarea contable, hazlo en un solo bloque de código dentro de `execute()`.
+2.  **Validación Pre-vuelo**: Usa `search()` al inicio de la sesión para confirmar que los campos que vas a usar en `execute()` existen en la versión actual del API.
 
-## 5. Servidor MCP (Advanced Execution)
-Muze OS incluye un servidor MCP (`muze-mcp-server`) que permite la ejecución de código sandboxed:
-- **`search(code)`**: Úsalo para navegar por el contrato API sin gastar tokens de contexto.
-- **`execute(code)`**: Te permite enviar un bloque JavaScript complejo que realice múltiples llamadas al API en una sola transacción, optimizando latencia.
+### B. Trazabilidad
+Toda ejecución vía `execute()` queda registrada automáticamente en la tabla `events` de Supabase con el tipo `mcp_execute_eval` para auditoría gerencial.
 
 ## 6. Flujo de Trabajo Recomendado para el Agente
 1.  **Exploración**: `GET /api/commercial-summary` para ver qué requiere atención.
