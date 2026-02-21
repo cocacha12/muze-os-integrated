@@ -1,6 +1,6 @@
 {
   "name": "muze-os-api",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "basePath": "/",
   "principles": [
     "single-source-of-truth",
@@ -17,9 +17,14 @@
       "update": "PATCH /api/tasks/:id",
       "delete": "DELETE /api/tasks/:id",
       "filters": [
-        "owner",
-        "status"
+        "owner_id",
+        "status",
+        "escalated_to_id"
       ]
+    },
+    "entities": {
+      "list": "GET /api/entities",
+      "get": "GET /api/entities/:id"
     },
     "projects": {
       "list": "GET /api/projects",
@@ -117,13 +122,21 @@
       "id": "UUID (read-only)",
       "title": "Short summary of the task",
       "objective": "Detailed description of what needs to be done",
-      "owner": "Name or ID of the assigned person/agent",
+      "owner_id": "UUID (id) from entities table",
+      "escalated_to_id": "UUID (id) of human in charge of help if needed",
       "status": "backlog|todo|in_progress|blocked|done",
       "priority": "low|medium|high|critical",
       "area": "finance|commercial|consulting|system",
       "due_date": "ISO-8601 date",
       "linked_project_id": "UUID (id) of the associated project",
-      "linked_quote_id": "UUID (id) of the associated quote"
+      "linked_quote_id": "UUID (id) of the associated quote",
+      "reasoning": "Array of objects [{ts: ISO, step: string, thought: string}]"
+    },
+    "entity": {
+      "id": "UUID",
+      "name": "Display name",
+      "type": "human|ai",
+      "role": "Position name"
     },
     "project": {
       "id": "UUID (primary identifier for linking)",
