@@ -294,9 +294,12 @@ Deno.serve(async (req) => {
                 return new Response(JSON.stringify({ ok: true, task: data }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
 
-            if (req.method === 'PATCH' && taskId) {
+            if (req.method === 'PATCH') {
+                const targetId = taskId || url.searchParams.get('id')
+                if (!targetId) return new Response(JSON.stringify({ error: 'Missing task ID' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+
                 const updates = await req.json()
-                const { data, error } = await supabaseAdmin.from('tasks').update(updates).eq('id', taskId).select().single()
+                const { data, error } = await supabaseAdmin.from('tasks').update(updates).eq('id', targetId).select().single()
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true, task: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
