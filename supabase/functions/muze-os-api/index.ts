@@ -14,7 +14,14 @@ Deno.serve(async (req) => {
 
     try {
         const url = new URL(req.url)
-        const path = url.pathname.replace('/muze-os-api', '')
+        console.log(`Incoming request: ${req.method} ${url.pathname}`)
+
+        // Robust path calculation: take everything after the function name
+        const path = url.pathname.includes('/muze-os-api')
+            ? url.pathname.split('/muze-os-api')[1] || '/'
+            : url.pathname
+
+        console.log(`Resolved path: ${path}`)
 
         // Common Supabase Client initialization using Auth context from request
         const supabaseClient = createClient(
@@ -473,6 +480,31 @@ Deno.serve(async (req) => {
             }
             if (req.method === 'DELETE' && id) {
                 const { error } = await supabaseAdmin.from('accounts').delete().eq('id', id)
+                if (error) throw error
+                return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Route: /api/entities (Agent Registration)
+        // -------------------------------------------------------------
+        if (path === '/api/entities' || path.startsWith('/api/entities/')) {
+            const id = path.split('/')[3]
+            if (req.method === 'GET') {
+                const { data, error } = id
+                    ? await supabaseAdmin.from('entities').select('*').eq('id', id).single()
+                    : await supabaseAdmin.from('entities').select('*')
+                if (error) throw error
+                return new Response(JSON.stringify(id ? { entity: data } : { entities: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+            }
+            if (req.method === 'POST' || req.method === 'PATCH') {
+                const body = await req.json()
+                const { data, error } = await supabaseAdmin.from('entities').upsert(body, { onConflict: 'name' }).select().single()
+                if (error) throw error
+                return new Response(JSON.stringify({ ok: true, entity: data }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+            }
+            if (req.method === 'DELETE' && id) {
+                const { error } = await supabaseAdmin.from('entities').delete().eq('id', id)
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }

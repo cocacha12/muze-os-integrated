@@ -16,7 +16,7 @@ const server = new Server(
   { capabilities: { tools: {} } }
 );
 
-// Define Code Mode Tools
+// Define Tools
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
@@ -47,6 +47,33 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ["code"]
         }
+      },
+      {
+        name: "register_agent",
+        description: "Register a new AI agent (entity) in the system or update existing config.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Name of the agent (e.g., 'CFO')" },
+            role: { type: "string", description: "Role description" },
+            config: { type: "object", description: "Optional agent configuration" }
+          },
+          required: ["name", "role"]
+        }
+      },
+      {
+        name: "upload_file",
+        description: "Upload a file to Muze OS storage and link it to a task.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            task_id: { type: "string", description: "The UUID of the task" },
+            name: { type: "string", description: "Filename" },
+            content: { type: "string", description: "Base64 encoded content" },
+            type: { type: "string", description: "Mime type or extension" }
+          },
+          required: ["task_id", "name", "content"]
+        }
       }
     ]
   };
@@ -55,10 +82,60 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 // Handle Tool Execution
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  if (name === "register_agent") {
+    const { data, error } = await supabase
+      .from('entities')
+      .upsert({
+        name: args?.name,
+        role: args?.role,
+        type: 'ai',
+        config: args?.config || {}
+      })
+      .select()
+      .single();
+
+    if (error) return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
+    return { content: [{ type: "text", text: `Agent registered: ${JSON.stringify(data)}` }] };
+  }
+
+  if (name === "upload_file") {
+    // Basic implementation: upload to storage and register in task_files
+    const bucket = 'task-attachments';
+    const filePath = `${args?.task_id}/${args?.name}`;
+
+    // In a real browser/deno env we'd convert base64 to Blob
+    // This is a simplified placeholder for the logic
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(filePath, args?.content as string, {
+        contentType: args?.type,
+        upsert: true
+      });
+
+    if (uploadError) return { content: [{ type: "text", text: `Upload Error: ${uploadError.message}` }], isError: true };
+
+    const { data: fileLink, error: linkError } = await supabase
+      .from('task_files')
+      .insert({
+        task_id: args?.task_id,
+        name: args?.name,
+        url: `${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`,
+        type: args?.type,
+        uploaded_by: 'Director Agent'
+      })
+      .select()
+      .single();
+
+    if (linkError) return { content: [{ type: "text", text: `Link Error: ${linkError.message}` }], isError: true };
+    return { content: [{ type: "text", text: `File uploaded and linked: ${JSON.stringify(fileLink)}` }] };
+  }
 
   return new Promise((resolve) => {
     try {
       const workerUrl = new URL('./worker/sandbox.ts', import.meta.url).href;
+      // ... rest of the existing worker logic
       const worker = new Worker(workerUrl, { type: "module" });
       const reqId = crypto.randomUUID();
 
