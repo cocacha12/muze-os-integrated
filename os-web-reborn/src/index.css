@@ -87,7 +87,7 @@
 }
 
 .wrap {
-  @apply max-w-[1200px] mx-auto p-6;
+  @apply max-w-full mx-auto p-6 lg:px-12;
 }
 
 .card {

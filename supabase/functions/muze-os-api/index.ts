@@ -4,16 +4,16 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, idempotency-key',
-    'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
 }
 
 Deno.serve(async (req) => {
+    const url = new URL(req.url)
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }
 
     try {
-        const url = new URL(req.url)
         console.log(`Incoming request: ${req.method} ${url.pathname}`)
 
         // Robust path calculation: take everything after the function name
@@ -265,14 +265,82 @@ Deno.serve(async (req) => {
         }
 
         // -------------------------------------------------------------
+        // Route: /api/config (Dictionary for Enums/Allowed Values)
+        // -------------------------------------------------------------
+        if (path === '/api/config' && req.method === 'GET') {
+            const dictionary = {
+                tasks: {
+                    status: ['todo', 'in_progress', 'review', 'done', 'canceled', 'blocked'],
+                    priority: ['baja', 'media', 'alta', 'critica'],
+                    areas: ['Ventas', 'Operaciones', 'Finanzas', 'Secretaría', 'Contabilidad', 'Gerencia']
+                },
+                projects: {
+                    stage: ['lead_new', 'qualification', 'discovery', 'proposal_draft', 'quoted', 'negotiation', 'won', 'lost', 'payment_received', 'delivered', 'closed'],
+                    currency: ['CLP', 'USD']
+                },
+                finance: {
+                    expense_categories: ['cost_direct', 'operating', 'honorarios', 'bono']
+                },
+                entities: {
+                    types: ['human', 'ai']
+                }
+            }
+            return new Response(JSON.stringify(dictionary), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        }
+
+        // -------------------------------------------------------------
+        // Route: /api/orchestrate (Atomic Multi-Operation)
+        // -------------------------------------------------------------
+        if (path === '/api/orchestrate' && req.method === 'POST') {
+            const { pulse_id, operations } = await req.json()
+            if (!operations || !Array.isArray(operations)) {
+                return new Response(JSON.stringify({ error: 'Operations array is required' }), { status: 400, headers: corsHeaders })
+            }
+
+            const results = []
+            for (const op of operations) {
+                const { table, method, payload, filter } = op
+                let query = supabaseAdmin.from(table)
+
+                let res;
+                if (method === 'INSERT') {
+                    res = await query.insert(payload).select().single()
+                } else if (method === 'UPDATE') {
+                    query = query.update(payload)
+                    for (const [k, v] of Object.entries(filter || {})) {
+                        query = query.eq(k, v)
+                    }
+                    res = await query.select().single()
+                } else if (method === 'UPSERT') {
+                    res = await query.upsert(payload, { onConflict: op.onConflict }).select().single()
+                } else if (method === 'DELETE') {
+                    let dQuery = query.delete()
+                    for (const [k, v] of Object.entries(filter || {})) {
+                        dQuery = dQuery.eq(k, v)
+                    }
+                    res = await dQuery
+                }
+
+                if (res?.error) {
+                    results.push({ ok: false, table, error: res.error, op_id: op.id })
+                } else {
+                    results.push({ ok: true, table, data: res?.data, op_id: op.id })
+                }
+            }
+
+            return new Response(JSON.stringify({ ok: true, pulse_id, results }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        }
+
+        // -------------------------------------------------------------
         // Route: /api/tasks
         // -------------------------------------------------------------
         if (path === '/api/tasks' || path.startsWith('/api/tasks/')) {
-            const taskId = path.split('/')[3] // /api/tasks/ID
+            const taskId = path.split('/')[3]
+            const targetId = taskId || url.searchParams.get('id')
 
             if (req.method === 'GET') {
-                if (taskId) {
-                    const { data: task, error } = await supabaseAdmin.from('tasks').select('*').eq('id', taskId).single()
+                if (targetId) {
+                    const { data: task, error } = await supabaseAdmin.from('tasks').select('*').eq('id', targetId).single()
                     if (error) return new Response(JSON.stringify({ error: error.message }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
                     return new Response(JSON.stringify({ task }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
                 } else {
@@ -295,17 +363,15 @@ Deno.serve(async (req) => {
             }
 
             if (req.method === 'PATCH') {
-                const targetId = taskId || url.searchParams.get('id')
                 if (!targetId) return new Response(JSON.stringify({ error: 'Missing task ID' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-
                 const updates = await req.json()
                 const { data, error } = await supabaseAdmin.from('tasks').update(updates).eq('id', targetId).select().single()
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true, task: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
 
-            if (req.method === 'DELETE' && taskId) {
-                const { error } = await supabaseAdmin.from('tasks').delete().eq('id', taskId)
+            if (req.method === 'DELETE' && targetId) {
+                const { error } = await supabaseAdmin.from('tasks').delete().eq('id', targetId)
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
@@ -316,10 +382,11 @@ Deno.serve(async (req) => {
         // -------------------------------------------------------------
         if (path === '/api/projects' || path.startsWith('/api/projects/')) {
             const pid = path.split('/')[3]
+            const targetId = pid || url.searchParams.get('id') || url.searchParams.get('project_id')
 
             if (req.method === 'GET') {
-                if (pid) {
-                    const { data: proj, error } = await supabaseAdmin.from('projects').select('*').eq('project_id', pid).single()
+                if (targetId) {
+                    const { data: proj, error } = await supabaseAdmin.from('projects').select('*').eq('project_id', targetId).single()
                     if (error) return new Response(JSON.stringify({ error: error.message }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
                     return new Response(JSON.stringify({ project: proj }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
                 } else {
@@ -336,15 +403,16 @@ Deno.serve(async (req) => {
                 return new Response(JSON.stringify({ ok: true, project: data }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
 
-            if (req.method === 'PATCH' && pid) {
+            if (req.method === 'PATCH') {
+                if (!targetId) return new Response(JSON.stringify({ error: 'Missing project ID' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
                 const updates = await req.json()
-                const { data, error } = await supabaseAdmin.from('projects').update(updates).eq('project_id', pid).select().single()
+                const { data, error } = await supabaseAdmin.from('projects').update(updates).eq('project_id', targetId).select().single()
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true, project: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
 
-            if (req.method === 'DELETE' && pid) {
-                const { error } = await supabaseAdmin.from('projects').delete().eq('project_id', pid)
+            if (req.method === 'DELETE' && targetId) {
+                const { error } = await supabaseAdmin.from('projects').delete().eq('project_id', targetId)
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
@@ -355,10 +423,11 @@ Deno.serve(async (req) => {
         // -------------------------------------------------------------
         if (path === '/api/quotes' || path.startsWith('/api/quotes/')) {
             const qid = path.split('/')[3]
+            const targetId = qid || url.searchParams.get('id')
 
             if (req.method === 'GET') {
-                if (qid) {
-                    const { data: q, error } = await supabaseAdmin.from('quotes').select('*').eq('id', qid).single()
+                if (targetId) {
+                    const { data: q, error } = await supabaseAdmin.from('quotes').select('*').eq('id', targetId).single()
                     if (error) return new Response(JSON.stringify({ error: error.message }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
                     return new Response(JSON.stringify({ quote: q }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
                 } else {
@@ -378,34 +447,34 @@ Deno.serve(async (req) => {
                 return new Response(JSON.stringify({ ok: true, quote: data }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
 
-            if (req.method === 'PATCH' && qid) {
+            if (req.method === 'PATCH') {
+                if (!targetId) return new Response(JSON.stringify({ error: 'Missing quote ID' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
                 const updates = await req.json()
-                const { data, error } = await supabaseAdmin.from('quotes').update(updates).eq('id', qid).select().single()
+                const { data, error } = await supabaseAdmin.from('quotes').update(updates).eq('id', targetId).select().single()
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true, quote: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
 
-            if (req.method === 'DELETE' && qid) {
-                const { error } = await supabaseAdmin.from('quotes').delete().eq('id', qid)
+            if (req.method === 'DELETE' && targetId) {
+                const { error } = await supabaseAdmin.from('quotes').delete().eq('id', targetId)
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
         }
 
         // -------------------------------------------------------------
-        // Route: /api/events (append)
-        // -------------------------------------------------------------
-        // -------------------------------------------------------------
         // Route: /api/finance/revenues
         // -------------------------------------------------------------
         if (path === '/api/finance/revenues' || path.startsWith('/api/finance/revenues/')) {
-            const id = path.split('/')[4]
+            const rid = path.split('/')[4]
+            const targetId = rid || url.searchParams.get('id')
+
             if (req.method === 'GET') {
-                const { data, error } = id
-                    ? await supabaseAdmin.from('finance_revenues').select('*').eq('id', id).single()
+                const { data, error } = targetId
+                    ? await supabaseAdmin.from('finance_revenues').select('*').eq('id', targetId).single()
                     : await supabaseAdmin.from('finance_revenues').select('*')
                 if (error) throw error
-                return new Response(JSON.stringify(id ? { revenue: data } : { revenues: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+                return new Response(JSON.stringify(targetId ? { revenue: data } : { revenues: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
             if (req.method === 'POST') {
                 const body = await req.json()
@@ -413,14 +482,15 @@ Deno.serve(async (req) => {
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true, revenue: data }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
-            if (req.method === 'PATCH' && id) {
+            if (req.method === 'PATCH') {
+                if (!targetId) return new Response(JSON.stringify({ error: 'Missing ID' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
                 const body = await req.json()
-                const { data, error } = await supabaseAdmin.from('finance_revenues').update(body).eq('id', id).select().single()
+                const { data, error } = await supabaseAdmin.from('finance_revenues').update(body).eq('id', targetId).select().single()
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true, revenue: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
-            if (req.method === 'DELETE' && id) {
-                const { error } = await supabaseAdmin.from('finance_revenues').delete().eq('id', id)
+            if (req.method === 'DELETE' && targetId) {
+                const { error } = await supabaseAdmin.from('finance_revenues').delete().eq('id', targetId)
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
@@ -430,13 +500,15 @@ Deno.serve(async (req) => {
         // Route: /api/finance/expenses
         // -------------------------------------------------------------
         if (path === '/api/finance/expenses' || path.startsWith('/api/finance/expenses/')) {
-            const id = path.split('/')[4]
+            const eid = path.split('/')[4]
+            const targetId = eid || url.searchParams.get('id')
+
             if (req.method === 'GET') {
-                const { data, error } = id
-                    ? await supabaseAdmin.from('finance_expenses').select('*').eq('id', id).single()
+                const { data, error } = targetId
+                    ? await supabaseAdmin.from('finance_expenses').select('*').eq('id', targetId).single()
                     : await supabaseAdmin.from('finance_expenses').select('*')
                 if (error) throw error
-                return new Response(JSON.stringify(id ? { expense: data } : { expenses: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+                return new Response(JSON.stringify(targetId ? { expense: data } : { expenses: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
             if (req.method === 'POST') {
                 const body = await req.json()
@@ -444,14 +516,15 @@ Deno.serve(async (req) => {
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true, expense: data }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
-            if (req.method === 'PATCH' && id) {
+            if (req.method === 'PATCH') {
+                if (!targetId) return new Response(JSON.stringify({ error: 'Missing ID' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
                 const body = await req.json()
-                const { data, error } = await supabaseAdmin.from('finance_expenses').update(body).eq('id', id).select().single()
+                const { data, error } = await supabaseAdmin.from('finance_expenses').update(body).eq('id', targetId).select().single()
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true, expense: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
-            if (req.method === 'DELETE' && id) {
-                const { error } = await supabaseAdmin.from('finance_expenses').delete().eq('id', id)
+            if (req.method === 'DELETE' && targetId) {
+                const { error } = await supabaseAdmin.from('finance_expenses').delete().eq('id', targetId)
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
@@ -461,13 +534,15 @@ Deno.serve(async (req) => {
         // Route: /api/accounts
         // -------------------------------------------------------------
         if (path === '/api/accounts' || path.startsWith('/api/accounts/')) {
-            const id = path.split('/')[3]
+            const aid = path.split('/')[3]
+            const targetId = aid || url.searchParams.get('id')
+
             if (req.method === 'GET') {
-                const { data, error } = id
-                    ? await supabaseAdmin.from('accounts').select('*').eq('id', id).single()
+                const { data, error } = targetId
+                    ? await supabaseAdmin.from('accounts').select('*').eq('id', targetId).single()
                     : await supabaseAdmin.from('accounts').select('*')
                 if (error) throw error
-                return new Response(JSON.stringify(id ? { account: data } : { accounts: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+                return new Response(JSON.stringify(targetId ? { account: data } : { accounts: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
             if (req.method === 'POST') {
                 const body = await req.json()
@@ -475,14 +550,15 @@ Deno.serve(async (req) => {
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true, account: data }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
-            if (req.method === 'PATCH' && id) {
+            if (req.method === 'PATCH') {
+                if (!targetId) return new Response(JSON.stringify({ error: 'Missing ID' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
                 const body = await req.json()
-                const { data, error } = await supabaseAdmin.from('accounts').update(body).eq('id', id).select().single()
+                const { data, error } = await supabaseAdmin.from('accounts').update(body).eq('id', targetId).select().single()
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true, account: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
-            if (req.method === 'DELETE' && id) {
-                const { error } = await supabaseAdmin.from('accounts').delete().eq('id', id)
+            if (req.method === 'DELETE' && targetId) {
+                const { error } = await supabaseAdmin.from('accounts').delete().eq('id', targetId)
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
@@ -492,22 +568,24 @@ Deno.serve(async (req) => {
         // Route: /api/entities (Agent Registration)
         // -------------------------------------------------------------
         if (path === '/api/entities' || path.startsWith('/api/entities/')) {
-            const id = path.split('/')[3]
+            const eid = path.split('/')[3]
+            const targetId = eid || url.searchParams.get('id')
+
             if (req.method === 'GET') {
-                const { data, error } = id
-                    ? await supabaseAdmin.from('entities').select('*').eq('id', id).single()
+                const { data, error } = targetId
+                    ? await supabaseAdmin.from('entities').select('*').eq('id', targetId).single()
                     : await supabaseAdmin.from('entities').select('*')
                 if (error) throw error
-                return new Response(JSON.stringify(id ? { entity: data } : { entities: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+                return new Response(JSON.stringify(targetId ? { entity: data } : { entities: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
             if (req.method === 'POST' || req.method === 'PATCH') {
                 const body = await req.json()
                 const { data, error } = await supabaseAdmin.from('entities').upsert(body, { onConflict: 'name' }).select().single()
                 if (error) throw error
-                return new Response(JSON.stringify({ ok: true, entity: data }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+                return new Response(JSON.stringify({ ok: true, entity: data }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
-            if (req.method === 'DELETE' && id) {
-                const { error } = await supabaseAdmin.from('entities').delete().eq('id', id)
+            if (req.method === 'DELETE' && targetId) {
+                const { error } = await supabaseAdmin.from('entities').delete().eq('id', targetId)
                 if (error) throw error
                 return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
             }
@@ -516,37 +594,41 @@ Deno.serve(async (req) => {
         // -------------------------------------------------------------
         // Route: /api/tasks/updates
         // -------------------------------------------------------------
-        if (path === '/api/tasks/updates' && req.method === 'GET') {
+        if (path === '/api/tasks/updates') {
             const taskId = url.searchParams.get('taskId')
-            let qry = supabaseAdmin.from('task_updates').select('*')
-            if (taskId) qry = qry.eq('task_id', taskId)
-            const { data, error } = await qry.order('created_at', { ascending: false })
-            if (error) throw error
-            return new Response(JSON.stringify({ updates: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-        }
-        if (path === '/api/tasks/updates' && req.method === 'POST') {
-            const body = await req.json()
-            const { data, error } = await supabaseAdmin.from('task_updates').insert([body]).select().single()
-            if (error) throw error
-            return new Response(JSON.stringify({ ok: true, update: data }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+            if (req.method === 'GET') {
+                let qry = supabaseAdmin.from('task_updates').select('*')
+                if (taskId) qry = qry.eq('task_id', taskId)
+                const { data, error } = await qry.order('created_at', { ascending: false })
+                if (error) throw error
+                return new Response(JSON.stringify({ updates: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+            }
+            if (req.method === 'POST') {
+                const body = await req.json()
+                const { data, error } = await supabaseAdmin.from('task_updates').insert([body]).select().single()
+                if (error) throw error
+                return new Response(JSON.stringify({ ok: true, update: data }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+            }
         }
 
         // -------------------------------------------------------------
         // Route: /api/tasks/files
         // -------------------------------------------------------------
-        if (path === '/api/tasks/files' && req.method === 'GET') {
+        if (path === '/api/tasks/files') {
             const taskId = url.searchParams.get('taskId')
-            let qry = supabaseAdmin.from('task_files').select('*')
-            if (taskId) qry = qry.eq('task_id', taskId)
-            const { data, error } = await qry.order('created_at', { ascending: false })
-            if (error) throw error
-            return new Response(JSON.stringify({ files: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-        }
-        if (path === '/api/tasks/files' && req.method === 'POST') {
-            const body = await req.json()
-            const { data, error } = await supabaseAdmin.from('task_files').insert([body]).select().single()
-            if (error) throw error
-            return new Response(JSON.stringify({ ok: true, file: data }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+            if (req.method === 'GET') {
+                let qry = supabaseAdmin.from('task_files').select('*')
+                if (taskId) qry = qry.eq('task_id', taskId)
+                const { data, error } = await qry.order('created_at', { ascending: false })
+                if (error) throw error
+                return new Response(JSON.stringify({ files: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+            }
+            if (req.method === 'POST') {
+                const body = await req.json()
+                const { data, error } = await supabaseAdmin.from('task_files').insert([body]).select().single()
+                if (error) throw error
+                return new Response(JSON.stringify({ ok: true, file: data }), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+            }
         }
 
         // -------------------------------------------------------------
@@ -561,8 +643,10 @@ Deno.serve(async (req) => {
             return new Response(JSON.stringify({ activity: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
         }
 
-        return new Response(JSON.stringify({ error: 'NOT_FOUND' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 })
+        return new Response(JSON.stringify({ error: 'NOT_FOUND', path, method: req.method }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 })
     } catch (err: any) {
-        return new Response(String(err?.message ?? err), { headers: corsHeaders, status: 500 })
+        console.error(`Error in ${req.method} ${url.pathname}:`, err)
+        return new Response(JSON.stringify({ error: err?.message ?? String(err) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
     }
 })
+

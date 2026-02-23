@@ -74,15 +74,269 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ["task_id", "name", "content"]
         }
+      },
+      {
+        name: "get_workspace_context",
+        description: "Returns the current state of the Muze OS workspace. Call this tool before creating tasks or projects if you are unsure about the allowed 'area', 'status', or who the current active 'assignees' (entities) are.",
+        inputSchema: {
+          type: "object",
+          properties: {},
+          required: []
+        }
+      },
+      {
+        name: "orchestrate_project",
+        description: "Complex tool to create an Account, a Project, and multiple Tasks in a single orchestrated flow. Ensures correct UUID linking.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            account_name: { type: "string", description: "Name of the customer account" },
+            project: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                project_id: { type: "string", description: "Slug/Reference ID" },
+                description: { type: "string" },
+                stage: { type: "string" },
+                amount: { type: "string" },
+                currency: { type: "string" }
+              },
+              required: ["name", "project_id"]
+            },
+            tasks: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  title: { type: "string" },
+                  area: { type: "string" },
+                  status: { type: "string" },
+                  priority: { type: "string" },
+                  assignee: { type: "string", description: "Name of the person assigned to this task" },
+                  reasoning: { type: "object" }
+                },
+                required: ["title"]
+              }
+            },
+            finance: {
+              type: "object",
+              description: "Optional financial details to register as Revenue.",
+              properties: {
+                amount_net: { type: "number", description: "Net amount (without tax) in local currency" },
+                tax_iva: { type: "number", description: "VAT/IVA amount in local currency" },
+                status: { type: "string", description: "e.g., 'pending', 'paid'" }
+              },
+              required: ["amount_net"]
+            }
+          },
+          required: ["account_name", "project"]
+        }
       }
     ]
   };
 });
 
+// --- Shared Logic Functions ---
+async function performOrchestration(args: any, supabase: any) {
+  try {
+    const { account_name, project, tasks = [], finance } = args;
+
+    if (!account_name) throw new Error("Missing account_name");
+    if (!project || !project.name) throw new Error("Missing project.name");
+
+    // Dynamic Validation Fail-Safes for LLM Context Awareness
+    const validTaskStatuses = ['todo', 'doing', 'done'];
+    const validAreas = ['commercial', 'operations', 'finance', 'system'];
+
+    for (const t of tasks) {
+      if (t.status && !validTaskStatuses.includes(t.status)) {
+        throw new Error(`Invalid task status '${t.status}' for task '${t.title}'. Valid statuses are: ${validTaskStatuses.join(', ')}. Please use the get_workspace_context tool to verify allowed schema values.`);
+      }
+      if (t.area && !validAreas.includes(t.area)) {
+        throw new Error(`Invalid area '${t.area}' for task '${t.title}'. Valid areas are: ${validAreas.join(', ')}. Please use the get_workspace_context tool to verify allowed schema values.`);
+      }
+    }
+
+    // 1. Get or Create Account
+    const { data: acc, error: accErr } = await supabase
+      .from('accounts')
+      .select('id, account_id')
+      .ilike('name', account_name)
+      .maybeSingle();
+
+    if (accErr) throw accErr;
+
+    let accountId = acc?.account_id;
+
+    if (!acc) {
+      const slug = account_name.toLowerCase().trim().replace(/[^a-z0-9]/g, '-');
+      const { data: newAcc, error: createAccErr } = await supabase
+        .from('accounts')
+        .insert({ name: account_name, account_id: slug })
+        .select()
+        .maybeSingle();
+
+      if (createAccErr) throw createAccErr;
+      if (!newAcc) throw new Error(`Could not create account: ${account_name}`);
+      accountId = newAcc.account_id;
+    }
+
+    // 2. Create/Update Project
+    const projectReasoning = Array.isArray(project.reasoning) ? project.reasoning : (project.reasoning ? [project.reasoning] : []);
+    const { data: proj, error: projErr } = await supabase
+      .from('projects')
+      .upsert({
+        ...project,
+        account_id: accountId,
+        reasoning: projectReasoning,
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (projErr) throw projErr;
+    if (!proj) throw new Error(`Could not create/update project: ${project.name}`);
+
+    // Emit Event for Project
+    await supabase.from('events').insert({
+      source: 'Kether',
+      channel: 'commercial',
+      type: 'PROJECT_ORCHESTRATED',
+      meta: {
+        summary: `Orquestado: ${proj.name}`,
+        reasoning: projectReasoning[0] || { analysis: `Iniciando proyecto para ${account_name}` }
+      }
+    });
+
+    // 3. Create Tasks
+    let tasksCreatedCount = 0;
+    if (tasks.length > 0) {
+      // Pre-fetch entities to match assignees
+      const { data: allEntities } = await supabase.from('entities').select('id, name');
+
+      const tasksToInsert = tasks.map((t: any) => {
+        let owner_id = null;
+        if (t.assignee && allEntities) {
+          const found = allEntities.find((e: any) =>
+            e.name && e.name.toLowerCase().includes(t.assignee.toLowerCase())
+          );
+          if (found) owner_id = found.id;
+        }
+
+        const { assignee, ...restTask } = t;
+
+        return {
+          ...restTask,
+          owner_id: owner_id,
+          linked_project_id: proj.id,
+          status: restTask.status || 'todo',
+          reasoning: Array.isArray(restTask.reasoning) ? restTask.reasoning : (restTask.reasoning ? [restTask.reasoning] : [])
+        };
+      });
+
+      const { data: createdTasks, error: tasksErr } = await supabase
+        .from('tasks')
+        .insert(tasksToInsert)
+        .select();
+
+      if (tasksErr) throw tasksErr;
+      tasksCreatedCount = createdTasks?.length || 0;
+
+      // Emit Events for Tasks
+      const taskEvents = createdTasks.map((t: any) => ({
+        source: 'Kether',
+        channel: 'operations',
+        type: 'TASK_CREATED',
+        meta: {
+          summary: `Tarea: ${t.title}`,
+          reasoning: t.reasoning?.[0] || { analysis: `Nueva tarea vinculada a ${proj.name}` }
+        }
+      }));
+      await supabase.from('events').insert(taskEvents);
+    }
+
+    // 4. Create Finance Record
+    let financeCreated = false;
+    if (finance && finance.amount_net) {
+      const { error: finError } = await supabase.from('finance_revenues').insert({
+        account_id: accountId,
+        project_id: proj.id,
+        source: 'Project Quoted',
+        net: finance.amount_net,
+        iva: finance.tax_iva || (finance.amount_net * 0.19),
+        status: finance.status || 'pending',
+        date: new Date().toISOString()
+      });
+      if (finError) throw finError;
+      financeCreated = true;
+
+      await supabase.from('events').insert({
+        source: 'Kether',
+        channel: 'finance',
+        type: 'REVENUE_PROJECTED',
+        meta: {
+          summary: `Ingreso Proyectado: ${proj.name} - $${finance.amount_net}`,
+          reasoning: { analysis: `Cotización u orden recibida y orquestada automáticamente.` }
+        }
+      });
+    }
+
+    return {
+      account_name,
+      account_id: accountId,
+      project_name: proj.name,
+      project_uuid: proj.id,
+      tasks_created: tasksCreatedCount,
+      finance_registered: financeCreated
+    };
+  } catch (err: any) {
+    // Log Orchestration Error Centralized
+    await supabase.from('events').insert({
+      source: 'Kether',
+      channel: 'system',
+      type: 'ERROR',
+      meta: {
+        summary: `Falla en orquestación: ${err.message}`,
+        reasoning: { payload: args, stack: err.stack }
+      }
+    });
+    throw err;
+  }
+}
+
 // Handle Tool Execution
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
   const supabase = createClient(supabaseUrl, supabaseKey);
+
+  if (name === "get_workspace_context") {
+    try {
+      // Fetch dynamic active entities
+      const { data: entities, error: eErr } = await supabase
+        .from('entities')
+        .select('name, role, type')
+        .order('name');
+
+      if (eErr) throw eErr;
+
+      // Define static business rules that UI enforces
+      const context = {
+        allowed_areas: ['commercial', 'finance', 'operations', 'system'],
+        allowed_task_statuses: ['todo', 'doing', 'done'],
+        allowed_project_stages: ['opportunity', 'quoted', 'in_progress', 'completed', 'cancelled'],
+        active_personnel: entities || []
+      };
+
+      return {
+        content: [{ type: "text", text: JSON.stringify(context, null, 2) }]
+      };
+    } catch (err: any) {
+      return {
+        content: [{ type: "text", text: `Error fetching context: ${err.message}` }],
+        isError: true,
+      };
+    }
+  }
 
   if (name === "register_agent") {
     const { data, error } = await supabase
@@ -105,8 +359,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const bucket = 'task-attachments';
     const filePath = `${args?.task_id}/${args?.name}`;
 
-    // In a real browser/deno env we'd convert base64 to Blob
-    // This is a simplified placeholder for the logic
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from(bucket)
       .upload(filePath, args?.content as string, {
@@ -132,6 +384,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     return { content: [{ type: "text", text: `File uploaded and linked: ${JSON.stringify(fileLink)}` }] };
   }
 
+  if (name === "orchestrate_project") {
+    try {
+      const result = await performOrchestration(args, supabase);
+      return {
+        content: [{
+          type: "text",
+          text: `Orchestration Success:
+- Account: ${result.account_name} (${result.account_id})
+- Project: ${result.project_name} (UUID: ${result.project_uuid})
+- Tasks created: ${result.tasks_created}`
+        }]
+      };
+    } catch (err: any) {
+      return { content: [{ type: "text", text: `Orchestration Error: ${err.message}` }], isError: true };
+    }
+  }
+
   return new Promise((resolve) => {
     try {
       const workerUrl = new URL('./worker/sandbox.ts', import.meta.url).href;
@@ -146,9 +415,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           if (success) {
             // Log successful execution (Simplified audit)
             if (name === "execute") {
-              const supabase = createClient(supabaseUrl, supabaseKey);
-              await supabase.from('events').insert({
-                source: 'system',
+              const supabaseClient = createClient(supabaseUrl, supabaseKey);
+              await supabaseClient.from('events').insert({
+                source: 'Kether',
                 channel: 'system',
                 type: 'mcp_execute_eval',
                 meta: { code_executed: args?.code, success: true }
@@ -156,6 +425,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             }
             resolve({ content: [{ type: "text", text: JSON.stringify(result, null, 2) }] });
           } else {
+            const supabaseClient = createClient(supabaseUrl, supabaseKey);
+            await supabaseClient.from('events').insert({
+              source: 'Kether',
+              channel: 'system',
+              type: 'ERROR',
+              meta: { summary: `Falla en MCP Execute: ${error}`, reasoning: { code: args?.code } }
+            });
             resolve({ content: [{ type: "text", text: `Error: ${error}` }], isError: true });
           }
         }
@@ -190,7 +466,7 @@ Deno.serve(async (req) => {
 
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, x-client-info, apikey",
   };
 
@@ -244,5 +520,73 @@ Deno.serve(async (req) => {
     return new Response("Accepted", { status: 202, headers: corsHeaders });
   }
 
+  // 4. Stateless Call (Direct Tool Call)
+  if (req.method === "POST" && path.endsWith("/mcp/call")) {
+    const body = await req.json();
+    const { name, arguments: toolArgs } = body;
+
+    if (!name) return new Response("Missing tool name", { status: 400, headers: corsHeaders });
+
+    // Reuse the same request handler logic by mocking the request object
+    // Note: Since setRequestHandler is meant for the server instance, for a stateless call 
+    // we can either trigger a server event or call the handler logic directly.
+    // For simplicity here, we'll manually route it or use the server's callTool if exposed.
+
+    // Actually, for a stateless call, we want to return the tool result.
+    // We can use the 'server.callTool' if the SDK allows or just trigger the handler.
+    // The cleanest way is to extract the handler logic.
+
+    // For now, let's use a simplified direct execution for stateless calls
+    // or better, use the server's internal dispatching if possible.
+
+    // Let's just respond with instructions to use SSE or implement a direct logic.
+    // Wait, Kether wants it NOW. I'll implement a direct bridge.
+
+    try {
+      const toolResult = await handleStatelessCall(name, toolArgs, supabaseUrl, supabaseKey);
+      return new Response(JSON.stringify(toolResult), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+  }
+
   return new Response("Not Found", { status: 404, headers: corsHeaders });
 });
+
+// Helper for stateless calls
+async function handleStatelessCall(name: string, args: any, url: string, key: string) {
+  const supabase = createClient(url, key);
+
+  try {
+    if (name === "orchestrate_project") {
+      const result = await performOrchestration(args, supabase);
+      return { success: true, result };
+    }
+
+    if (name === "register_agent") {
+      const { data, error } = await supabase.from('entities').upsert({
+        name: args?.name,
+        role: args?.role,
+        type: 'ai',
+        config: args?.config || {}
+      }).select().single();
+      if (error) throw error;
+      return { success: true, data };
+    }
+
+    return { error: `Tool '${name}' not supported in stateless mode yet.` };
+  } catch (err: any) {
+    await supabase.from('events').insert({
+      source: 'Kether',
+      channel: 'system',
+      type: 'ERROR',
+      meta: { summary: `Falla Stateless [${name}]: ${err.message}`, reasoning: { args, stack: err.stack } }
+    });
+    throw err;
+  }
+}

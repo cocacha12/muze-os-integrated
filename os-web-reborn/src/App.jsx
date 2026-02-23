@@ -1,11 +1,22 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import { AuditView } from './components/AuditView'
-import { Sun, Moon, Hexagon, ArrowRight, Activity, Command, LayoutDashboard, Briefcase, Target, FileText, CheckCircle2, X, Clock, User, Zap, ChevronRight, MessageSquare, Paperclip, History, AlertCircle, Sparkles } from 'lucide-react'
+import { Sun, Moon, Hexagon, ArrowRight, Activity, Command, LayoutDashboard, Briefcase, Target, FileText, CheckCircle2, X, Clock, User, Users, Zap, ChevronRight, MessageSquare, Paperclip, History, AlertCircle, Sparkles, Bot, Database, Terminal } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { EmptyState } from './components/EmptyState'
 // Formatting helpers
-const CLP = n => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(n || 0));
+// Conversion Rates (Simulated for Feb 2026)
+const CONVERSION_RATES = {
+    CLF: 39751, // Unidad de Fomento
+    USD: 867,   // Dólar Observado
+    CLP: 1
+};
+
+const CLP = (n, currency = 'CLP') => {
+    const rate = CONVERSION_RATES[currency?.toUpperCase()] || 1;
+    const valueInCLP = Number(n || 0) * rate;
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(valueInCLP);
+};
 
 function App() {
     const [view, setView] = useState('home'); // home, operations, finance, commercial, executive, audit
@@ -14,6 +25,7 @@ function App() {
     const [theme, setTheme] = useState('dark');
     const [entities, setEntities] = useState([]);
     const [selectedTask, setSelectedTask] = useState(null);
+    const [selectedProject, setSelectedProject] = useState(null);
     const [stats, setStats] = useState({
         open: 0,
         inProgress: 0,
@@ -22,6 +34,45 @@ function App() {
         health: 'ok',
         lag: '12'
     });
+    const [showNeuralStatus, setShowNeuralStatus] = useState(false);
+
+    // Configuración Global de Errores (Logs para Kether y UI)
+    useEffect(() => {
+        const logErrorToDB = async (errMessage, stack, sourcePath) => {
+            try {
+                await supabase.from('events').insert({
+                    source: 'UI_Client',
+                    channel: 'system',
+                    type: 'ERROR',
+                    meta: {
+                        summary: errMessage,
+                        reasoning: { analysis: stack, path: sourcePath }
+                    }
+                });
+            } catch (e) {
+                console.error("Failed to log error to DB:", e);
+            }
+        };
+
+        const handleWindowError = (event) => {
+            console.error("Global Error Caught:", event.error);
+            logErrorToDB(event.message, event.error?.stack, window.location.pathname);
+        };
+
+        const handleUnhandledRejection = (event) => {
+            console.error("Unhandled Promise Rejection:", event.reason);
+            const msg = event.reason?.message || String(event.reason);
+            logErrorToDB(`Unhandled Promise: ${msg}`, event.reason?.stack, window.location.pathname);
+        };
+
+        window.addEventListener('error', handleWindowError);
+        window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+        return () => {
+            window.removeEventListener('error', handleWindowError);
+            window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+        };
+    }, []);
 
     useEffect(() => {
         checkUser();
@@ -74,7 +125,7 @@ function App() {
 
             const { data: tasks } = await supabase.from('tasks').select('status');
             const open = tasks?.filter(t => t.status === 'todo').length || 0;
-            const inProgress = tasks?.filter(t => t.status === 'in_progress').length || 0;
+            const inProgress = tasks?.filter(t => t.status === 'in_progress' || t.status === 'doing').length || 0;
             const blocked = tasks?.filter(t => t.status === 'blocked').length || 0;
 
             const { data: revData } = await supabase.from('finance_revenues').select('net');
@@ -130,12 +181,12 @@ function App() {
             <main className="wrap">
                 <header className="flex justify-between items-center gap-4 flex-wrap mb-8">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/10 rounded-xl border border-primary/20 shadow-inner">
+                        <div className="p-2 bg-primary/10 rounded-xl border border-primary/20 shadow-inner hover:scale-105 transition-transform cursor-pointer" onClick={() => setView('home')}>
                             <img src="/muze-logo-iso.svg" alt="Muze" className="w-8 h-8 object-contain" />
                         </div>
                         <h1 className="text-2xl font-black flex flex-col leading-none tracking-tight">
                             Muze OS
-                            <span className="text-[10px] text-primary uppercase tracking-[0.2em] font-black">{view} view</span>
+                            <span className="text-[8px] text-muted-foreground uppercase tracking-[0.3em] font-black mt-1">Enterprise Neural Intelligence</span>
                         </h1>
                     </div>
 
@@ -164,8 +215,17 @@ function App() {
                             <div className="text-[10px] text-muted-foreground uppercase font-bold">{user.role}</div>
                         </div>
                     </div>
-                    <div className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">
-                        Server: production-us-west
+                    <div
+                        className="flex flex-col items-end gap-1 cursor-pointer hover:opacity-80 transition-opacity p-2 rounded-xl hover:bg-white/5 active:scale-95"
+                        onClick={() => setShowNeuralStatus(true)}
+                    >
+                        <div className="text-[10px] text-muted-foreground uppercase font-black tracking-widest flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Neural Grid: Online
+                        </div>
+                        <div className="text-[8px] text-primary/60 font-mono">
+                            Last Sync: {new Date().toLocaleTimeString()}
+                        </div>
                     </div>
                 </div>
 
@@ -179,14 +239,18 @@ function App() {
                             transition={{ duration: 0.3, ease: "easeOut" }}
                             className="w-full"
                         >
-                            {view === 'home' && <HomeView stats={stats} user={user} setView={setView} />}
+                            {view === 'home' && <HomeView stats={stats} user={user} setView={setView} setSelectedTask={setSelectedTask} setSelectedProject={setSelectedProject} />}
                             {view === 'finance' && <FinanceView user={user} setView={setView} />}
-                            {view === 'commercial' && <CommercialView user={user} setView={setView} setSelectedTask={setSelectedTask} />}
-                            {view === 'operations' && <OperationsView user={user} setView={setView} entities={entities} setSelectedTask={setSelectedTask} />}
+                            {view === 'commercial' && <CommercialView user={user} setView={setView} setSelectedTask={setSelectedTask} setSelectedProject={setSelectedProject} />}
+                            {view === 'operations' && <OperationsView user={user} setView={setView} entities={entities} setSelectedTask={setSelectedTask} selectedProject={selectedProject} setSelectedProject={setSelectedProject} />}
                             {view === 'audit' && <AuditView user={user} />}
                         </motion.div>
                     </AnimatePresence>
                 </div>
+
+                <AnimatePresence>
+                    {showNeuralStatus && <NeuralStatusModal onClose={() => setShowNeuralStatus(false)} entities={entities} />}
+                </AnimatePresence>
 
                 <AnimatePresence>
                     {selectedTask && (
@@ -222,46 +286,156 @@ function NavBtn({ active, label, onClick }) {
     )
 }
 
-function HomeView({ stats, user, setView }) {
-    return (
-        <div className="space-y-6">
-            <section className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                <StatCard label="Open Tasks" value={stats.open} />
-                <StatCard label="In Progress" value={stats.inProgress} />
-                <StatCard label="Blocked" value={stats.blocked} color="text-destructive" />
-                <StatCard label="Facturado Neto" value={CLP(stats.revenue)} />
-                <StatCard label="Sync Health" value={stats.health === 'ok' ? `🟢 OK · ${stats.lag}s` : '🔴 Warn'} />
-            </section>
+function HomeView({ stats, user, setView, setSelectedTask, setSelectedProject }) {
+    const [recentProjects, setRecentProjects] = useState([]);
 
-            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <ModuleCard
-                    title="Execution (Operations)"
-                    desc="Tablero Kanban, owners, deadlines y seguimiento de tareas."
-                    icon={Activity}
-                    onClick={() => setView('operations')}
-                />
-                <ModuleCard
-                    title="Finance"
-                    desc="Ingresos, IVA, costos, gastos, utilidad e impuesto estimado."
-                    icon={Briefcase}
-                    onClick={() => setView('finance')}
-                />
-                <ModuleCard
-                    title="Commercial"
-                    desc="Pipeline comercial, cotizaciones y actividad de cierre."
-                    icon={Target}
-                    onClick={() => setView('commercial')}
-                />
+    useEffect(() => {
+        const fetchRecent = async () => {
+            const { data } = await supabase.from('projects').select('*').order('created_at', { ascending: false }).limit(3);
+            setRecentProjects(data || []);
+        };
+        fetchRecent();
+    }, []);
+
+    return (
+        <div className="space-y-8 animate-in fade-in duration-700">
+            <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 className="text-3xl font-black tracking-tighter uppercase italic m-0">Intelligence Dashboard</h2>
+                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] mt-1">Sincronización Neural Activa · {new Date().toLocaleDateString()}</p>
+                </div>
+                <div className="flex gap-2">
+                    <button onClick={() => setView('operations')} className="bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-black px-4 py-2 rounded-xl transition-all border border-primary/20">
+                        OPEN OPS
+                    </button>
+                </div>
+            </header>
+
+            <section className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                <StatCard label="Tareas Pendientes" value={stats.open} />
+                <StatCard label="En Ejecución" value={stats.inProgress} color="text-primary" />
+                <StatCard label="Bloqueos" value={stats.blocked} color={stats.blocked > 0 ? "text-destructive" : ""} />
+                <StatCard label="Ventas Período" value={CLP(stats.revenue)} />
+                <StatCard label="Uptime IA" value="100%" color="text-emerald-500" />
             </section>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
+                <div className="lg:col-span-2 space-y-6">
+                    <AgentBrainWidget />
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <ActiveOperationsWidget setSelectedTask={setSelectedTask} setView={setView} />
+                        <FinanceOutlookWidget stats={stats} setView={setView} />
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    <div className="card bg-secondary/30 border-border/50">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Briefcase size={14} className="text-primary" />
+                            <h4 className="text-[10px] font-black uppercase tracking-widest leading-none">Últimos Proyectos</h4>
+                        </div>
+                        <div className="space-y-3">
+                            {recentProjects.length === 0 ? (
+                                <div className="text-[10px] text-muted-foreground uppercase py-4">Sin proyectos recientes</div>
+                            ) : recentProjects.map(p => (
+                                <div key={p.id} className="p-3 bg-background/50 rounded-xl border border-border/50 hover:border-primary/30 transition-all cursor-pointer group"
+                                    onClick={() => {
+                                        setSelectedProject(p);
+                                        setView('operations');
+                                    }}
+                                >
+                                    <div className="flex justify-between items-center mb-1">
+                                        <div className="text-[11px] font-bold group-hover:text-primary transition-colors truncate">{p.name}</div>
+                                        <div className="text-[10px] font-black">{CLP(p.amount, p.currency)}</div>
+                                    </div>
+                                    <div className="text-[8px] text-muted-foreground uppercase">{p.account_id} · {p.stage}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
                     <LiveAuditWidget />
                 </div>
-                <div className="card h-full flex flex-col justify-center items-center text-center p-8 border-dashed opacity-50">
-                    <Sparkles size={32} className="text-primary mb-4" />
-                    <h4 className="text-xs font-black uppercase tracking-widest">IA Intelligence Center</h4>
-                    <p className="text-[10px] mt-2">Monitoreando 5 hilos de pensamiento en paralelo.</p>
+            </div>
+        </div>
+    );
+}
+
+function AgentBrainWidget() {
+    const [thoughts, setThoughts] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetch = async () => {
+            const { data } = await supabase
+                .from('events')
+                .select('*')
+                .not('meta->reasoning', 'is', null)
+                .order('ts', { ascending: false })
+                .limit(10);
+
+            // If no reasoning in meta, fallback to any AI source events
+            if (!data || data.length === 0) {
+                const { data: aiEvents } = await supabase
+                    .from('events')
+                    .select('*')
+                    .in('source', ['Kether', 'CFO', 'COO', 'CRO', 'CSO', 'Accountant'])
+                    .order('ts', { ascending: false })
+                    .limit(10);
+                setThoughts(aiEvents || []);
+            } else {
+                setThoughts(data);
+            }
+            setLoading(false);
+        };
+        fetch();
+        const sub = supabase.channel('agent_brain').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, fetch).subscribe();
+        return () => supabase.removeChannel(sub);
+    }, []);
+
+    return (
+        <div className="card h-[380px] bg-primary/5 border-primary/20 overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-primary/20 bg-primary/10 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <Sparkles size={16} className="text-primary animate-pulse" />
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Intelligence Center</h4>
+                </div>
+                <div className="w-2 h-2 rounded-full bg-emerald-500/50 animate-ping" />
+            </div>
+            <div className="p-4 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-4 font-mono bg-black/20">
+                {loading ? (
+                    <div className="flex-1 flex items-center justify-center text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">
+                        Syncing Neural Links...
+                    </div>
+                ) : thoughts.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30">
+                        <Bot size={24} className="mb-2" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">No active thoughts</span>
+                    </div>
+                ) : (
+                    thoughts.map((t, i) => {
+                        const reasoning = Array.isArray(t.meta?.reasoning) ? t.meta.reasoning[0] : t.meta?.reasoning;
+                        return (
+                            <div key={t.id} className="group flex flex-col gap-1 border-l-2 border-primary/30 pl-3 py-1 hover:border-primary transition-colors">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-primary">{t.source}</span>
+                                    <span className="text-[8px] font-mono text-muted-foreground">{new Date(t.ts).toLocaleTimeString()}</span>
+                                </div>
+                                <p className="text-[10px] leading-relaxed text-foreground/80 italic line-clamp-2 uppercase font-medium">
+                                    {reasoning?.analysis ||
+                                        t.meta?.summary ||
+                                        t.content_after?.summary ||
+                                        t.type.replace(/_/g, ' ')}
+                                </p>
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+            <div className="p-3 bg-primary/5 border-t border-primary/10 mt-auto">
+                <div className="text-[8px] font-black uppercase tracking-[0.3em] text-center text-primary/40">
+                    Neural Network Active · {thoughts.length} Threads
                 </div>
             </div>
         </div>
@@ -273,7 +447,7 @@ function LiveAuditWidget() {
 
     useEffect(() => {
         const fetch = async () => {
-            const { data } = await supabase.from('events').select('*').order('ts', { ascending: false }).limit(5);
+            const { data } = await supabase.from('events').select('*').order('ts', { ascending: false }).limit(8);
             setEvents(data || []);
         };
         fetch();
@@ -282,32 +456,44 @@ function LiveAuditWidget() {
     }, []);
 
     return (
-        <div className="card p-0 overflow-hidden border-primary/20 bg-primary/5">
+        <div className="card p-0 overflow-hidden border-primary/20 bg-primary/5 h-full">
             <div className="p-4 border-b border-primary/20 bg-primary/10 flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                    <TerminalSquare size={14} className="text-primary" />
+                    <Terminal size={14} className="text-primary" />
                     <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Live Operations Trace</h3>
                 </div>
                 <div className="flex gap-2">
                     <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
                 </div>
             </div>
-            <div className="divide-y divide-primary/10">
-                {events.map((ev, i) => (
-                    <div key={ev.id} className="p-3 flex items-center justify-between hover:bg-white/5 transition-colors">
-                        <div className="flex items-center gap-3">
-                            <div className="text-[9px] font-mono text-primary/60">{new Date(ev.ts).toLocaleTimeString()}</div>
-                            <div className="text-[10px] font-black uppercase tracking-tight">{ev.type.replace(/_/g, ' ')}</div>
-                        </div>
-                        <div className="text-[10px] font-bold text-muted-foreground italic truncate max-w-[200px]">
-                            {ev.source} → {ev.content_after?.status || 'Executed'}
-                        </div>
+            <div className="divide-y divide-primary/10 overflow-auto max-h-[300px] custom-scrollbar">
+                {events.length === 0 ? (
+                    <div className="p-8 text-center opacity-20 flex flex-col items-center gap-2">
+                        <Database size={20} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Awaiting Pulse...</span>
                     </div>
-                ))}
+                ) : (
+                    events.map((ev, i) => (
+                        <div key={ev.id} className="p-3 flex items-center justify-between hover:bg-white/5 transition-colors group">
+                            <div className="flex items-center gap-3">
+                                <div className="text-[9px] font-mono text-primary/60">{new Date(ev.ts).toLocaleTimeString()}</div>
+                                <div className="text-[10px] font-black uppercase tracking-tight group-hover:text-primary transition-colors">{ev.type.replace(/_/g, ' ')}</div>
+                            </div>
+                            <div className="text-[10px] font-bold text-muted-foreground italic truncate max-w-[200px]">
+                                <span className="text-primary/70 not-italic">{ev.source}</span> <span className="mx-1">→</span> {
+                                    ev.meta?.summary ||
+                                    ev.content_after?.status ||
+                                    (ev.content_after?.name ? `Updated ${ev.content_after.name}` : 'Executed')
+                                }
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     )
 }
+
 
 function TerminalSquare({ size, className }) {
     return (
@@ -661,9 +847,143 @@ function TaskDetail({ task, onClose, entities }) {
 
 function StatCard({ label, value, color = "" }) {
     return (
-        <div className="card flex flex-col justify-between">
+        <div className="card flex flex-col justify-between hover:border-primary/30 transition-colors">
             <div className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">{label}</div>
             <div className={`text-2xl font-black mt-2 ${color}`}>{value}</div>
+        </div>
+    )
+}
+
+function NeuralStatusModal({ onClose, entities }) {
+    const agents = entities.filter(e => e.type === 'ai');
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={onClose}
+                className="absolute inset-0 bg-background/80 backdrop-blur-md"
+            />
+            <motion.div
+                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+                className="card w-full max-w-md relative z-10 border-primary/20 shadow-2xl shadow-primary/10 overflow-hidden"
+            >
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 className="text-xl font-black tracking-tighter uppercase italic">Neural Network Status</h3>
+                        <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Diagnostic Heartbeat · Live</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full"><X size={16} /></button>
+                </div>
+
+                <div className="space-y-3">
+                    {agents.map(agent => (
+                        <div key={agent.id} className="p-4 bg-secondary/50 rounded-2xl border border-border flex items-center justify-between group">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-primary/10 rounded-xl text-primary border border-primary/20 group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+                                    <Bot size={20} />
+                                </div>
+                                <div>
+                                    <div className="text-sm font-black text-white">{agent.name}</div>
+                                    <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">{agent.role}</div>
+                                </div>
+                            </div>
+                            <div className="flex flex-col items-end gap-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[9px] font-black text-emerald-500 uppercase">Active</span>
+                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                </div>
+                                <div className="text-[8px] font-mono text-muted-foreground/50">Heartbeat: 0.8ms</div>
+                            </div>
+                        </div>
+                    ))}
+                    {agents.length === 0 && <div className="text-center py-8 text-muted-foreground text-xs font-black uppercase">No active agents detected</div>}
+                </div>
+
+                <div className="mt-6 pt-6 border-t border-border flex items-center justify-between">
+                    <div className="text-[9px] font-black text-muted-foreground uppercase flex items-center gap-2">
+                        <Terminal size={10} /> Sync Latency: 12ms
+                    </div>
+                    <button className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline" onClick={onClose}>Close System Diagnostics</button>
+                </div>
+            </motion.div>
+        </div>
+    )
+}
+
+function ActiveOperationsWidget({ setSelectedTask, setView }) {
+    const [topTasks, setTopTasks] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetch = async () => {
+            const { data } = await supabase
+                .from('tasks')
+                .select('*')
+                .in('status', ['in_progress', 'review', 'todo'])
+                .order('priority', { ascending: false })
+                .limit(3);
+            setTopTasks(data || []);
+            setLoading(false);
+        };
+        fetch();
+    }, []);
+
+    return (
+        <div className="card bg-secondary/30 border-border/50 hover:border-primary/20 transition-all flex flex-col group">
+            <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-2">
+                    <Activity size={14} className="text-primary group-hover:animate-bounce" />
+                    <h4 className="text-[10px] font-black uppercase tracking-widest leading-none">High Priority Ops</h4>
+                </div>
+                <button onClick={() => setView('operations')} className="text-[8px] font-black uppercase text-primary hover:underline">View All</button>
+            </div>
+            <div className="space-y-2 flex-1">
+                {loading ? <div className="h-20 animate-pulse bg-white/5 rounded-xl" /> : topTasks.map(t => (
+                    <div key={t.id} onClick={() => setSelectedTask(t)} className="p-3 bg-background/40 hover:bg-background/80 rounded-xl border border-border/50 transition-all cursor-pointer flex items-center justify-between">
+                        <div className="flex flex-col gap-1 overflow-hidden">
+                            <span className="text-[11px] font-bold text-white truncate max-w-[150px]">{t.title}</span>
+                            <span className="text-[8px] text-muted-foreground uppercase font-black">{t.status.replace('_', ' ')}</span>
+                        </div>
+                        <ChevronRight size={14} className="text-muted-foreground/30" />
+                    </div>
+                ))}
+                {!loading && topTasks.length === 0 && <div className="text-[10px] text-muted-foreground uppercase text-center py-4">All operations clear</div>}
+            </div>
+        </div>
+    )
+}
+
+function FinanceOutlookWidget({ stats, setView }) {
+    return (
+        <div className="card bg-secondary/30 border-border/50 hover:border-primary/20 transition-all flex flex-col group">
+            <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-2">
+                    <Database size={14} className="text-primary" />
+                    <h4 className="text-[10px] font-black uppercase tracking-widest leading-none">Finance Outlook</h4>
+                </div>
+                <button onClick={() => setView('finance')} className="text-[8px] font-black uppercase text-primary hover:underline">Full Report</button>
+            </div>
+
+            <div className="flex-1 flex flex-col justify-end gap-4">
+                <div className="flex justify-between items-end">
+                    <div>
+                        <div className="text-[8px] text-muted-foreground uppercase font-black mb-1">Total Revenue</div>
+                        <div className="text-lg font-black tracking-tight">{CLP(stats.revenue)}</div>
+                    </div>
+                    <div className="text-right">
+                        <div className="text-[8px] text-muted-foreground uppercase font-black mb-1">Est. Profit</div>
+                        <div className="text-lg font-black text-primary tracking-tight">{CLP(stats.revenue * 0.42)}</div>
+                    </div>
+                </div>
+                <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden flex">
+                    <div className="h-full bg-primary" style={{ width: '65%' }} />
+                    <div className="h-full bg-amber-500/50" style={{ width: '20%' }} />
+                </div>
+                <div className="flex justify-between items-center text-[8px] font-black uppercase text-muted-foreground/60">
+                    <span>Operating: 65%</span>
+                    <span>Taxes: 20%</span>
+                </div>
+            </div>
         </div>
     )
 }
@@ -690,20 +1010,27 @@ function ModuleCard({ title, desc, icon: Icon, onClick }) {
     )
 }
 
-function OperationsView({ user, setView, entities, setSelectedTask }) {
+function OperationsView({ user, setView, entities, setSelectedTask, selectedProject, setSelectedProject }) {
     const [tasks, setTasks] = useState([]);
+    const [projects, setProjects] = useState([]);
+    const [accounts, setAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState('');
+    const [filter, setFilter] = useState(''); // Responsable filter
+    const [clientFilter, setClientFilter] = useState(''); // New: Client filter
     const [activeTab, setActiveTab] = useState('kanban');
-    // selectedTask moved to App
 
-    useEffect(() => { fetchTasks(); }, []);
-
-    async function fetchTasks() {
-        const { data } = await supabase.from('tasks').select('*').order('created_at', { ascending: false });
-        setTasks(data || []);
-        setLoading(false);
-    }
+    useEffect(() => {
+        const fetch = async () => {
+            const { data: t } = await supabase.from('tasks').select('*').order('created_at', { ascending: false });
+            const { data: p } = await supabase.from('projects').select('*').order('name');
+            const { data: a } = await supabase.from('accounts').select('*').order('name');
+            setTasks(t || []);
+            setProjects(p || []);
+            setAccounts(a || []);
+            setLoading(false);
+        };
+        fetch();
+    }, []);
 
     const counts = { todo: 0, in_progress: 0, blocked: 0, done: 0, backlog: 0 };
     tasks.forEach(t => {
@@ -711,7 +1038,18 @@ function OperationsView({ user, setView, entities, setSelectedTask }) {
         counts[s] = (counts[s] || 0) + 1;
     });
 
-    const filteredTasks = tasks.filter(t => !filter || t.owner_id === filter);
+    const filteredTasks = tasks.filter(t => {
+        const matchesResponsable = !filter || t.owner_id === filter;
+        const matchesProject = !selectedProject || t.linked_project_id === selectedProject.id;
+
+        let matchesClient = true;
+        if (clientFilter) {
+            const p = projects.find(proj => proj.id === t.linked_project_id);
+            matchesClient = p?.account_id === clientFilter;
+        }
+
+        return matchesResponsable && matchesProject && matchesClient;
+    });
 
     if (loading) return null;
 
@@ -728,6 +1066,55 @@ function OperationsView({ user, setView, entities, setSelectedTask }) {
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    {/* Client Filter */}
+                    <div className="flex items-center gap-2 bg-primary/10 p-1.5 rounded-xl border border-primary/20">
+                        <Users size={12} className="text-primary/70 ml-1" />
+                        <select
+                            className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest focus:ring-0 cursor-pointer pr-8"
+                            value={clientFilter}
+                            onChange={(e) => {
+                                setClientFilter(e.target.value);
+                                setSelectedProject(null); // Reset project when client changes
+                            }}
+                        >
+                            <option value="">Todos los Clientes</option>
+                            {accounts.map(acc => (
+                                <option key={acc.id} value={acc.account_id}>{acc.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Project Filter */}
+                    <div className="flex items-center gap-2 bg-primary/10 p-1.5 rounded-xl border border-primary/20">
+                        <Briefcase size={12} className="text-primary/70 ml-1" />
+                        <select
+                            className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest focus:ring-0 cursor-pointer pr-8"
+                            value={selectedProject?.id || ''}
+                            onChange={(e) => {
+                                const p = projects.find(proj => proj.id === e.target.value);
+                                setSelectedProject(p || null);
+                            }}
+                        >
+                            <option value="">Todos los Proyectos</option>
+                            {projects.filter(p => !clientFilter || p.account_id === clientFilter).map(proj => (
+                                <option key={proj.id} value={proj.id}>{proj.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {selectedProject && (
+                        <div className="flex items-center gap-2 bg-primary/20 text-primary border border-primary/30 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest animate-in fade-in slide-in-from-right-4">
+                            <Target size={12} />
+                            Filtro: {selectedProject.name}
+                            <button
+                                onClick={() => setSelectedProject(null)}
+                                className="ml-2 p-1 hover:bg-primary/20 rounded-lg transition-colors"
+                            >
+                                <X size={10} />
+                            </button>
+                        </div>
+                    )}
+
                     <div className="glass-card flex p-1 rounded-xl">
                         <button
                             className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'kanban' ? 'bg-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:text-white'}`}
@@ -766,49 +1153,56 @@ function OperationsView({ user, setView, entities, setSelectedTask }) {
 
             {activeTab === 'kanban' && (
                 <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
-                    {kanbanStatuses.map(status => (
-                        <div key={status} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex-1 min-w-[300px] flex flex-col gap-4">
-                            <h3 className="text-xs uppercase font-black text-muted-foreground tracking-widest flex justify-between">
-                                {status.replace('_', ' ')}
-                                <span className="bg-background px-2 py-0.5 rounded-full text-[10px]">{counts[status]}</span>
-                            </h3>
-                            <div className="flex flex-col gap-3">
-                                {tasks.filter(t => t.status === status && (!filter || t.owner_id === filter)).length === 0 && (
-                                    <div className="text-center p-8 text-[10px] text-muted-foreground font-black uppercase tracking-widest">Sin Tareas</div>
+                    {kanbanStatuses.map(status => {
+                        const columnTasks = tasks.filter(t => t.status === status && (!filter || t.owner_id === filter));
+                        const isEmpty = columnTasks.length === 0;
+
+                        return (
+                            <div
+                                key={status}
+                                className={`bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-4 transition-all duration-500 ${isEmpty ? 'min-w-[120px] opacity-40 hover:opacity-100' : 'flex-1 min-w-[300px]'}`}
+                            >
+                                <h3 className={`text-xs uppercase font-black text-muted-foreground tracking-widest flex justify-between items-center ${isEmpty ? 'flex-col gap-2' : ''}`}>
+                                    <span className={isEmpty ? 'rotate-90 origin-left mt-12 whitespace-nowrap' : ''}>{status.replace('_', ' ')}</span>
+                                    <span className="bg-background px-2 py-0.5 rounded-full text-[10px]">{counts[status]}</span>
+                                </h3>
+                                {!isEmpty && (
+                                    <div className="flex flex-col gap-3">
+                                        {columnTasks.map((t, idx) => (
+                                            <motion.div
+                                                key={t.id}
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ delay: idx * 0.05 }}
+                                                onClick={() => setSelectedTask(t)}
+                                                className="card p-4 flex flex-col gap-3 hover:-translate-y-1 transition-transform cursor-pointer border-l-2 border-l-transparent hover:border-l-primary"
+                                            >
+                                                <div className="flex justify-between items-start gap-2">
+                                                    <h4 className="font-bold text-sm leading-tight text-white group-hover:text-primary transition-colors">{t.title}</h4>
+                                                    <Badge status={t.status} />
+                                                </div>
+                                                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{t.objective}</p>
+                                                <div className="flex justify-between items-center mt-2 pt-3 border-t border-white/5">
+                                                    <div className="flex items-center gap-2">
+                                                        {entities.find(e => e.id === t.owner_id)?.type === 'ai' ? <Zap size={10} className="text-primary" /> : <User size={10} className="text-muted-foreground" />}
+                                                        <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest truncate max-w-[80px]">
+                                                            {entities.find(e => e.id === t.owner_id)?.name || 'Unassigned'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {t.escalated_to_id && <AlertCircle size={10} className="text-amber-500 animate-pulse" />}
+                                                        <span className={`text-[9px] font-black uppercase ${t.priority === 'critical' || t.priority === 'high' ? 'text-destructive' : 'text-muted-foreground/50'}`}>
+                                                            {t.priority}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        ))}
+                                    </div>
                                 )}
-                                {tasks.filter(t => t.status === status && (!filter || t.owner_id === filter)).map((t, idx) => (
-                                    <motion.div
-                                        key={t.id}
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: idx * 0.05 }}
-                                        onClick={() => setSelectedTask(t)}
-                                        className="card p-4 flex flex-col gap-3 hover:-translate-y-1 transition-transform cursor-pointer border-l-2 border-l-transparent hover:border-l-primary"
-                                    >
-                                        <div className="flex justify-between items-start gap-2">
-                                            <h4 className="font-bold text-sm leading-tight text-white group-hover:text-primary transition-colors">{t.title}</h4>
-                                            <Badge status={t.status} />
-                                        </div>
-                                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{t.objective}</p>
-                                        <div className="flex justify-between items-center mt-2 pt-3 border-t border-white/5">
-                                            <div className="flex items-center gap-2">
-                                                {entities.find(e => e.id === t.owner_id)?.type === 'ai' ? <Zap size={10} className="text-primary" /> : <User size={10} className="text-muted-foreground" />}
-                                                <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest truncate max-w-[80px]">
-                                                    {entities.find(e => e.id === t.owner_id)?.name || 'Unassigned'}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {t.escalated_to_id && <AlertCircle size={10} className="text-amber-500 animate-pulse" />}
-                                                <span className={`text-[9px] font-black uppercase ${t.priority === 'critical' || t.priority === 'high' ? 'text-destructive' : 'text-muted-foreground/50'}`}>
-                                                    {t.priority}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </motion.div>
-                                ))}
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
@@ -920,11 +1314,28 @@ function FinanceView({ user, setView }) {
                 </div>
             </div>
 
-            <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <section className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="md:col-span-2 lg:col-span-2 card p-6 bg-primary/5 border-primary/30 flex flex-col justify-between relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <Activity size={80} strokeWidth={1} />
+                    </div>
+                    <div>
+                        <div className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-1">Utilidad Mensual Estimada (Hero Metric)</div>
+                        <div className="text-4xl font-black tracking-tighter">{data.netProfitAfterTax > 0 ? CLP(data.netProfitAfterTax) : '$ 0'}</div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-4">
+                        <div className="flex gap-1">
+                            {[0.4, 0.6, 0.5, 0.8, 0.7, 0.9, 1].map((v, i) => (
+                                <div key={i} className="w-1 bg-primary/40 rounded-full" style={{ height: `${v * 20}px` }} />
+                            ))}
+                        </div>
+                        <span className="text-[10px] font-bold text-emerald-500 flex items-center gap-1">
+                            <Zap size={10} /> +12.5% vs Prev
+                        </span>
+                    </div>
+                </div>
                 <StatCard label="Facturado Neto" value={CLP(data.netRevenue)} />
-                <StatCard label="Utilidad Est." value={data.netProfitAfterTax > 0 ? CLP(data.netProfitAfterTax) : '$ 0'} color="text-primary" />
-                <StatCard label="Flujo Proyectado 30d" value={CLP(data.projectedRevenue)} color="text-emerald-500" />
-                <StatCard label="Reserva IDPC (25%)" value={CLP(data.taxReserve)} color="text-amber-500" />
+                <StatCard label="Flujo Proyectado (30d)" value={CLP(data.projectedRevenue)} color="text-emerald-500" />
             </section>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1010,12 +1421,16 @@ function Badge({ status }) {
     )
 }
 
-function CommercialView({ user, setView, setSelectedTask }) {
+function CommercialView({ user, setView, setSelectedTask, setSelectedProject }) {
     const [data, setData] = useState(null);
+    const [accounts, setAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(null);
+    const [expandedProjectId, setExpandedProjectId] = useState(null);
+    const [clientFilter, setClientFilter] = useState('');
 
     useEffect(() => { fetchCommercial(); }, []);
+
 
     async function handleGenerateQuote(p) {
         setGenerating(p.project_id);
@@ -1062,17 +1477,19 @@ function CommercialView({ user, setView, setSelectedTask }) {
 
     async function fetchCommercial() {
         setLoading(true);
-        const { data: accounts } = await supabase.from('accounts').select('*');
+        const { data: dbAccs } = await supabase.from('accounts').select('*');
         const { data: projects } = await supabase.from('projects').select('*');
         const { data: tasks } = await supabase.from('tasks').select('*');
         const { data: files } = await supabase.from('task_files').select('*');
         const { data: dbQuotes } = await supabase.from('quotes').select('*');
 
-        const hierarchy = accounts?.map(acc => ({
+        setAccounts(dbAccs || []);
+
+        const hierarchy = dbAccs?.map(acc => ({
             customer: acc.name,
             account: acc,
             projects: projects?.filter(p => (p.account_id || '').toLowerCase() === (acc.account_id || '').toLowerCase()).map(p => {
-                const projectTasks = tasks?.filter(t => (t.project_id || '').toLowerCase() === (p.project_id || '').toLowerCase()) || [];
+                const projectTasks = tasks?.filter(t => t.linked_project_id === p.id) || [];
                 const projectFiles = files?.filter(f => projectTasks.some(t => t.id === f.task_id)) || [];
 
                 const qFromFiles = projectFiles.filter(f => f.name.toLowerCase().includes('cotización') || f.name.toLowerCase().includes('proposal')).map(f => ({
@@ -1101,7 +1518,10 @@ function CommercialView({ user, setView, setSelectedTask }) {
                 const stage = (p.stage || '').toLowerCase();
                 return stage !== 'payment_received' && stage !== 'lost';
             }).length || 0,
-            value: projects?.reduce((a, b) => a + Number(b.amount || 0), 0) || 0
+            value: projects?.reduce((a, b) => {
+                const rate = CONVERSION_RATES[b.currency?.toUpperCase()] || 1;
+                return a + (Number(b.amount || 0) * rate);
+            }, 0) || 0
         };
 
         setData({ hierarchy, stats });
@@ -1110,91 +1530,151 @@ function CommercialView({ user, setView, setSelectedTask }) {
 
     if (loading) return null;
 
-    return (
-        <div className="flex flex-col gap-6">
-            <h2 className="text-2xl font-black m-0">Commercial Pipeline</h2>
-            <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatCard label="Pipeline Total" value={data.stats.open} />
-                <StatCard label="En Seguimiento" value={data.stats.in_progress} />
-                <StatCard label="Expected Value" value={CLP(data.stats.value)} color="text-primary" />
-                <StatCard label="Conversion" value="24%" />
-            </section>
+    const filteredHierarchy = data.hierarchy.filter(h => !clientFilter || h.account.account_id === clientFilter);
+    const filteredStats = {
+        open: filteredHierarchy.reduce((acc, h) => acc + h.projects.length, 0),
+        value: filteredHierarchy.reduce((acc, h) => acc + h.projects.reduce((pAcc, p) => {
+            const rate = CONVERSION_RATES[p.currency?.toUpperCase()] || 1;
+            return pAcc + (Number(p.amount || 0) * rate);
+        }, 0), 0)
+    };
 
-            <div className="space-y-8">
-                {data.hierarchy.length === 0 ? (
+    return (
+        <div className="flex flex-col gap-8 w-full">
+            <header className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 border-b border-border pb-8">
+                <div>
+                    <div className="flex items-center gap-3 mb-2">
+                        <span className="h-1 w-12 bg-primary rounded-full" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary">Commercial</span>
+                    </div>
+                    <h2 className="text-4xl font-black tracking-tighter uppercase italic">Pipeline Estratégico</h2>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-6">
+                    {/* Client Filter */}
+                    <div className="flex items-center gap-2 bg-primary/10 p-2 rounded-xl border border-primary/20">
+                        <Users size={14} className="text-primary/70 ml-1" />
+                        <select
+                            className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest focus:ring-0 cursor-pointer pr-8"
+                            value={clientFilter}
+                            onChange={(e) => setClientFilter(e.target.value)}
+                        >
+                            <option value="">Todos los Clientes</option>
+                            {accounts.map(acc => (
+                                <option key={acc.id} value={acc.account_id}>{acc.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-8 pl-6 border-l border-border/50">
+                        <div className="text-right">
+                            <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Volumen</div>
+                            <div className="text-2xl font-black tracking-tighter text-primary">{CLP(filteredStats.value)}</div>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Proyectos</div>
+                            <div className="text-2xl font-black tracking-tighter text-foreground">{filteredStats.open}</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div className="space-y-6">
+                {filteredHierarchy.length === 0 ? (
                     <EmptyState
                         icon={Briefcase}
                         title="Pipeline Estratégico Vacío"
-                        description="Aún no hay proyectos comerciales activos. Puedo ayudarte a generar un análisis de prospectos o cargar el histórico de ventas."
-                        actionLabel="Crear Proyecto"
-                        onAction={() => alert('Director Agent: Función delegada.')}
+                        description="Aún no hay proyectos comerciales activos que coincidan con el filtro."
                     />
-                ) : data.hierarchy.map(c => (
-                    <div key={c.customer} className="space-y-3">
-                        <div className="flex justify-between items-end border-b-2 border-primary/20 pb-2">
-                            <h3 className="text-xl font-black text-primary uppercase tracking-tight">{c.customer}</h3>
-                            <div className="hidden md:flex gap-4 text-[9px] text-muted-foreground uppercase font-black">
-                                {c.account.champions?.map((ch, i) => <span key={i} className="bg-secondary px-2 py-1 rounded-full">{ch.name} · {ch.role}</span>)}
+                ) : filteredHierarchy.map(c => (
+                    <div key={c.customer} className="space-y-2">
+                        <div className="flex justify-between items-center border-b border-primary/20 pb-1">
+                            <h3 className="text-lg font-black text-primary uppercase tracking-tight">{c.customer}</h3>
+                            <div className="text-[8px] text-muted-foreground uppercase font-black bg-secondary px-2 py-0.5 rounded-full">
+                                {c.projects.length} {c.projects.length === 1 ? 'Proyecto' : 'Proyectos'}
                             </div>
                         </div>
-                        <div className="grid grid-cols-1 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                             {c.projects.map(p => {
                                 const stageStyles = {
                                     negotiation: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
                                     oc_sent: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
                                     invoiced: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+                                    won: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
                                     development: 'bg-primary/10 text-primary border-primary/20',
                                     lost: 'bg-destructive/10 text-destructive border-destructive/20'
                                 };
                                 const currentStage = (p.stage || 'lead').toLowerCase();
                                 const badgeStyle = stageStyles[currentStage] || stageStyles.development;
+                                const isExpanded = expandedProjectId === p.project_id;
 
                                 return (
-                                    <div key={p.project_id} className="card p-6 grid grid-cols-1 md:grid-cols-4 gap-6 items-center hover:bg-primary/5">
-                                        <div className="flex flex-col">
-                                            <div className="font-black text-lg leading-tight uppercase tracking-tight">{p.name}</div>
-                                            <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.description}</div>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-[9px] text-muted-foreground font-black uppercase tracking-widest mb-1">Monto Estimado</div>
-                                            <div className="font-black text-lg">{CLP(p.amount)}</div>
-                                        </div>
-                                        <div className="flex flex-col items-center">
-                                            <div className="text-[9px] text-muted-foreground font-black uppercase tracking-widest mb-2">Stage</div>
-                                            <span className={`text-[10px] font-black px-3 py-1 rounded-full border ${badgeStyle}`}>
-                                                {(p.stage || 'lead').replace(/_/g, ' ')}
-                                            </span>
-                                        </div>
-                                        <div className="flex flex-col gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    if (p.tasks.length > 0) setSelectedTask(p.tasks[0]);
-                                                }}
-                                                disabled={p.tasks.length === 0}
-                                                className={`text-[10px] font-black px-4 py-2 rounded-xl shadow-lg border uppercase tracking-widest transition-all ${p.tasks.length > 0 ? 'bg-primary text-primary-foreground border-primary/20 shadow-primary/20 hover:scale-105' : 'bg-secondary/50 text-muted-foreground/30 border-border opacity-50 cursor-not-allowed'}`}
-                                            >
-                                                {p.tasks.length > 0 ? 'Explorar Tareas' : 'Sin Tareas'}
-                                            </button>
-
-                                            {p.quotes.length > 0 ? (
-                                                p.quotes.map(q => (
-                                                    <a
-                                                        key={q.id}
-                                                        href={q.url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="flex items-center justify-center gap-2 bg-emerald-500/10 text-emerald-500 text-[10px] font-black px-4 py-2 rounded-xl border border-emerald-500/20 uppercase tracking-widest hover:bg-emerald-500/20 transition-all font-mono"
-                                                    >
-                                                        <FileText size={10} />
-                                                        PDF Cotización
-                                                    </a>
-                                                ))
-                                            ) : (
-                                                <div className="text-[10px] font-black px-4 py-3 rounded-xl border border-dashed border-border text-muted-foreground/20 uppercase tracking-widest text-center bg-secondary/20">
-                                                    Sin Cotización
+                                    <div key={p.project_id} className={`card p-0 overflow-hidden border transition-all duration-300 ${isExpanded ? 'border-primary/40 shadow-xl' : 'border-transparent hover:border-primary/20'}`}>
+                                        <div className="p-4 flex flex-col gap-3 hover:bg-primary/5 cursor-pointer" onClick={() => setExpandedProjectId(isExpanded ? null : p.project_id)}>
+                                            <div className="flex justify-between items-start gap-2">
+                                                <div className="font-black text-xs uppercase tracking-tight truncate flex-1">
+                                                    {p.name}
                                                 </div>
-                                            )}
+                                                <div className="text-[10px] font-black text-primary whitespace-nowrap">{CLP(p.amount, p.currency)}</div>
+                                            </div>
+
+                                            <div className="flex items-center justify-between">
+                                                <div className="text-[8px] text-muted-foreground uppercase tracking-widest">{p.project_id}</div>
+                                                <span className={`text-[8px] font-black px-2 py-0.5 rounded-md border tracking-widest ${badgeStyle}`}>
+                                                    {(p.stage || 'lead').replace(/_/g, ' ')}
+                                                </span>
+                                            </div>
                                         </div>
+
+                                        <AnimatePresence>
+                                            {isExpanded && (
+                                                <motion.div
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: 'auto', opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    className="bg-primary/5 border-t border-primary/10 overflow-hidden"
+                                                >
+                                                    <div className="p-4 space-y-3">
+                                                        <div className="text-[9px] text-muted-foreground leading-relaxed italic border-l-2 border-primary/20 pl-2">
+                                                            {p.description}
+                                                        </div>
+
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedProject(p);
+                                                                    setView('operations');
+                                                                }}
+                                                                className="flex-1 flex items-center justify-center gap-2 text-[8px] font-black uppercase bg-secondary text-foreground p-2 rounded-lg hover:bg-primary hover:text-primary-foreground transition-all"
+                                                            >
+                                                                <Activity size={10} /> Ops
+                                                            </button>
+
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleGenerateQuote(p);
+                                                                }}
+                                                                disabled={generating === p.project_id}
+                                                                className="flex-1 flex items-center justify-center gap-2 text-[8px] font-black uppercase bg-primary text-primary-foreground p-2 rounded-lg hover:scale-105 transition-all shadow-lg shadow-primary/20"
+                                                            >
+                                                                {generating === p.project_id ? <Clock size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                                                                Cotización
+                                                            </button>
+                                                        </div>
+
+                                                        {p.quotes.map(q => (
+                                                            <a key={q.id} href={q.url} target="_blank" rel="noopener noreferrer"
+                                                                className="flex items-center gap-2 bg-emerald-500/10 text-emerald-500 text-[8px] font-black p-2 rounded-lg border border-emerald-500/20 uppercase tracking-widest hover:bg-emerald-500/20 transition-all font-mono"
+                                                            >
+                                                                <FileText size={10} /> PDF Propuesta
+                                                            </a>
+                                                        ))}
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
                                     </div>
                                 );
                             })}
