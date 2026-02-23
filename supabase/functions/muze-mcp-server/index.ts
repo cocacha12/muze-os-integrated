@@ -223,14 +223,16 @@ async function performOrchestration(args: any, supabase: any) {
           if (found) owner_id = found.id;
         }
 
-        const { assignee, ...restTask } = t;
-
         return {
-          ...restTask,
+          title: t.title,
+          description: t.description || null,
+          objective: t.objective || null,
+          priority: t.priority || 'medium',
+          due_date: t.due_date || null,
           owner_id: owner_id,
           linked_project_id: proj.id,
-          status: restTask.status || 'todo',
-          reasoning: Array.isArray(restTask.reasoning) ? restTask.reasoning : (restTask.reasoning ? [restTask.reasoning] : [])
+          status: t.status || 'todo',
+          reasoning: Array.isArray(t.reasoning) ? t.reasoning : (t.reasoning ? [t.reasoning] : [])
         };
       });
 
