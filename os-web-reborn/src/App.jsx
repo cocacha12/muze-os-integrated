@@ -1032,12 +1032,6 @@ function OperationsView({ user, setView, entities, setSelectedTask, selectedProj
         fetch();
     }, []);
 
-    const counts = { todo: 0, in_progress: 0, blocked: 0, done: 0, backlog: 0 };
-    tasks.forEach(t => {
-        const s = t.status === 'doing' ? 'in_progress' : t.status;
-        counts[s] = (counts[s] || 0) + 1;
-    });
-
     const filteredTasks = tasks.filter(t => {
         const matchesResponsable = !filter || t.owner_id === filter;
         const matchesProject = !selectedProject || t.linked_project_id === selectedProject.id;
@@ -1049,6 +1043,12 @@ function OperationsView({ user, setView, entities, setSelectedTask, selectedProj
         }
 
         return matchesResponsable && matchesProject && matchesClient;
+    });
+
+    const counts = { todo: 0, in_progress: 0, blocked: 0, done: 0, backlog: 0 };
+    filteredTasks.forEach(t => {
+        const s = t.status === 'doing' ? 'in_progress' : t.status;
+        counts[s] = (counts[s] || 0) + 1;
     });
 
     if (loading) return null;
@@ -1154,7 +1154,7 @@ function OperationsView({ user, setView, entities, setSelectedTask, selectedProj
             {activeTab === 'kanban' && (
                 <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
                     {kanbanStatuses.map(status => {
-                        const columnTasks = tasks.filter(t => t.status === status && (!filter || t.owner_id === filter));
+                        const columnTasks = filteredTasks.filter(t => t.status === status);
                         const isEmpty = columnTasks.length === 0;
 
                         return (
